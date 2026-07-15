@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Long Lines — Live Traffic</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="frame">
+    <header id="topbar">
+      <div class="brand">
+        <span class="bell">&#9743;</span>
+        <span id="site">BELL SYSTEM</span>
+        <span class="sep">//</span>
+        <span id="subtitle">LONG LINES — LIVE TRAFFIC</span>
+      </div>
+      <div class="readout">
+        <span id="clock">--:--:--</span>
+        <span id="link" class="link down">LINK DOWN</span>
+      </div>
+    </header>
+
+    <canvas id="scope"></canvas>
+
+    <footer id="statusbar">
+      <div class="stat"><label>IN PROGRESS</label><span id="s-active">0</span></div>
+      <div class="stat"><label>RINGING</label><span id="s-ringing">0</span></div>
+      <div class="stat"><label>CALLS TODAY</label><span id="s-handled">0</span></div>
+      <div class="stat"><label>UPTIME</label><span id="s-uptime">00:00:00</span></div>
+      <div class="stat legend">
+        <span class="dot idle"></span>IDLE
+        <span class="dot ringing"></span>RINGING
+        <span class="dot busy"></span>IN&nbsp;PROGRESS
+      </div>
+    </footer>
+  </div>
+
+  <div class="scanlines" aria-hidden="true"></div>
+  <script src="app.js"></script>
+</body>
+</html>

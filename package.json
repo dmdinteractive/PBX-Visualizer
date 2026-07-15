@@ -1,0 +1,17 @@
+{
+  "name": "pbx-long-lines-visualizer",
+  "version": "1.0.0",
+  "description": "Retro AT&T Long Lines style live visualizer for FreePBX/Asterisk telephone traffic",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "simulate": "PBXV_MODE=simulate node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
