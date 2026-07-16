@@ -215,9 +215,12 @@ function drawStation(s, t) {
   ctx.font = `${13 * dpr}px "DejaVu Sans Mono", Menlo, monospace`;
   ctx.fillStyle = active ? COLORS.ink : COLORS.dim;
   ctx.fillText(s.id, lx, ly);
-  ctx.font = `${10 * dpr}px "DejaVu Sans Mono", Menlo, monospace`;
-  ctx.fillStyle = COLORS.dim;
-  ctx.fillText(s.name || '', lx, ly + 14 * dpr);
+  // Only show the secondary label when it's a real name (not a repeat of the number).
+  if (s.name && s.name !== s.id) {
+    ctx.font = `${10 * dpr}px "DejaVu Sans Mono", Menlo, monospace`;
+    ctx.fillStyle = COLORS.dim;
+    ctx.fillText(s.name, lx, ly + 14 * dpr);
+  }
   ctx.textAlign = 'start';
 }
 
