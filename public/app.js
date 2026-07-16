@@ -1,26 +1,27 @@
-/* Long Lines visualizer — canvas renderer + WebSocket client.
+/* HELLO! — Bell System NOC "big board" renderer.
  *
- * Layout: extensions ("switching stations") sit around a ring. A central
- * "LONG LINES / PSTN" toll hub represents the outside world. Internal calls are
- * chords across the ring; external calls are spokes to the hub. Ringing = amber
- * dashed pulse; in progress = solid green with flowing traffic dots. */
+ * Deliberately static: the board is redrawn only when the call state changes
+ * or the window resizes — no animation loops, no motion. Stations are lamps
+ * on a ring, the LONG LINES hub is the toll gateway, and calls are drawn as
+ * plain routes colored by the telephone status code. */
 
 const EXTERNAL = 'EXTERNAL';
 const COLORS = {
-  bg: '#05080a', grid: '#0e1a17', ring: '#183028',
-  amber: '#ffb62e', green: '#46f08a', cyan: '#4fd6ff',
-  dim: '#4a6b62', ink: '#cfe8df', hub: '#ffb62e',
+  navy: '#071320', panel: '#0b1d31', grid: '#0e2135',
+  route: '#2f86e0', bell: '#2f86e0', bellDim: '#3d6690',
+  green: '#33c26b', amber: '#f2a900', red: '#e43b30', idle: '#37567a',
+  ink: '#d7e7fb', inkDim: '#7f9bbd',
 };
 
 const canvas = document.getElementById('scope');
 const ctx = canvas.getContext('2d');
 
-let state = { stations: [], calls: [], stats: {}, now: Date.now() };
-let stationPos = new Map(); // id -> {x, y}
-let hub = { x: 0, y: 0, r: 0 };
+let state = { stations: [], calls: [], stats: {} };
+let stationPos = new Map();
+let hub = { x: 0, y: 0, w: 0, h: 0 };
 let dpr = 1;
 
-// ---- WebSocket with auto-reconnect ----------------------------------------
+// ---- WebSocket ----
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${location.host}`);
@@ -43,68 +44,79 @@ function setLink(up) {
 
 function applyState(msg) {
   state = msg;
-  document.getElementById('site').textContent = msg.site || 'BELL SYSTEM';
-  document.getElementById('subtitle').textContent = msg.subtitle || '';
+  document.title = `${msg.exhibit || 'HELLO!'} — ${msg.site || 'BELL SYSTEM'} NOC`;
+  if (msg.exhibit) document.getElementById('exhibit-title').textContent = msg.exhibit;
+  if (msg.subtitle) document.getElementById('subtitle').textContent = msg.subtitle;
+  if (msg.site) document.querySelector('.wordmark .line1').textContent = msg.site;
+
   document.getElementById('s-active').textContent = msg.stats.active ?? 0;
   document.getElementById('s-ringing').textContent = msg.stats.ringing ?? 0;
   document.getElementById('s-handled').textContent = msg.stats.handled ?? 0;
-  document.getElementById('s-uptime').textContent = hms(msg.stats.uptimeMs ?? 0);
+  document.getElementById('stations-count').textContent = msg.stations.length;
+  document.getElementById('uptime').textContent = hms(msg.stats.uptimeMs ?? 0);
+  setSysStatus(msg.stats);
+
   layout();
+  render();
+  renderList();
 }
 
-// ---- geometry -------------------------------------------------------------
+function setSysStatus(stats) {
+  const el = document.getElementById('sysstatus');
+  const active = stats.active ?? 0;
+  const ringing = stats.ringing ?? 0;
+  let cls = 'normal', txt = 'NORMAL';
+  if (active + ringing >= 12) { cls = 'alarm'; txt = 'HEAVY'; }
+  else if (active + ringing > 0) { cls = 'busy'; txt = 'ACTIVE'; }
+  el.className = 'sys ' + cls;
+  el.querySelector('b').textContent = txt;
+}
+
+// ---- geometry ----
 function resize() {
   dpr = Math.min(window.devicePixelRatio || 1, 2);
   canvas.width = Math.floor(canvas.clientWidth * dpr);
   canvas.height = Math.floor(canvas.clientHeight * dpr);
   layout();
+  render();
 }
 
 function layout() {
   const w = canvas.width, h = canvas.height;
   const cx = w / 2, cy = h / 2;
-  const R = Math.min(w, h) * 0.36;
-  hub = { x: cx, y: cy, r: Math.max(34 * dpr, R * 0.16) };
+  const R = Math.min(w, h) * 0.38;
+  hub = { x: cx, y: cy, w: 150 * dpr, h: 66 * dpr, r: R };
   stationPos = new Map();
   const n = state.stations.length;
-  if (!n) return;
-  // Start at top, go clockwise.
   for (let i = 0; i < n; i++) {
     const a = -Math.PI / 2 + (i / n) * Math.PI * 2;
-    stationPos.set(state.stations[i].id, {
-      x: cx + Math.cos(a) * R,
-      y: cy + Math.sin(a) * R,
-      a,
-    });
+    stationPos.set(state.stations[i].id, { x: cx + Math.cos(a) * R, y: cy + Math.sin(a) * R, a });
   }
 }
 
-function posOf(partyId) {
-  if (partyId === EXTERNAL) return hub;
-  return stationPos.get(partyId) || hub;
+function posOf(id) {
+  if (id === EXTERNAL) return hub;
+  return stationPos.get(id) || hub;
 }
 
-// ---- drawing --------------------------------------------------------------
-function draw(t) {
-  const w = canvas.width, h = canvas.height;
-  ctx.fillStyle = COLORS.bg;
-  ctx.fillRect(0, 0, w, h);
+function stationColor(status) {
+  return status === 'busy' ? COLORS.green : status === 'ringing' ? COLORS.amber : COLORS.idle;
+}
 
+// ---- drawing (static) ----
+function render() {
+  const w = canvas.width, h = canvas.height;
+  ctx.fillStyle = COLORS.navy;
+  ctx.fillRect(0, 0, w, h);
   drawGrid(w, h);
   drawRing();
-
-  // Calls first (under the nodes), ringing under connected.
-  const calls = [...state.calls].sort((a, b) => (a.state === 'connected') - (b.state === 'connected'));
-  for (const c of calls) drawCall(c, t);
-
-  for (const s of state.stations) drawStation(s, t);
-  drawHub(t);
-
-  requestAnimationFrame(draw);
+  for (const c of state.calls) drawRoute(c);
+  for (const s of state.stations) drawStation(s);
+  drawHub();
 }
 
 function drawGrid(w, h) {
-  const step = 46 * dpr;
+  const step = 40 * dpr;
   ctx.strokeStyle = COLORS.grid;
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -114,193 +126,136 @@ function drawGrid(w, h) {
 }
 
 function drawRing() {
-  if (!stationPos.size) return;
-  const R = Math.hypot([...stationPos.values()][0].x - hub.x, [...stationPos.values()][0].y - hub.y);
-  ctx.strokeStyle = COLORS.ring;
-  ctx.lineWidth = 1.5 * dpr;
-  ctx.setLineDash([2 * dpr, 6 * dpr]);
-  ctx.beginPath();
-  ctx.arc(hub.x, hub.y, R, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
-}
-
-function drawCall(c, t) {
-  const p1 = posOf(c.fromId), p2 = posOf(c.toId);
-  const ringing = c.state !== 'connected';
-  const color = ringing ? COLORS.amber : (c.external ? COLORS.green : COLORS.cyan);
-
-  // Curve internal (both ends on ring) calls slightly toward center for clarity.
-  const bend = c.fromId !== EXTERNAL && c.toId !== EXTERNAL;
-  const mx = (p1.x + p2.x) / 2 + (bend ? (hub.x - (p1.x + p2.x) / 2) * 0.35 : 0);
-  const my = (p1.y + p2.y) / 2 + (bend ? (hub.y - (p1.y + p2.y) / 2) * 0.35 : 0);
-
-  ctx.lineWidth = (ringing ? 1.6 : 2.6) * dpr;
-  ctx.strokeStyle = color;
-  ctx.globalAlpha = ringing ? 0.35 + 0.35 * (0.5 + 0.5 * Math.sin(t / 200)) : 0.85;
-  if (ringing) ctx.setLineDash([6 * dpr, 7 * dpr]);
-  ctx.shadowColor = color;
-  ctx.shadowBlur = (ringing ? 6 : 12) * dpr;
-  ctx.beginPath();
-  ctx.moveTo(p1.x, p1.y);
-  ctx.quadraticCurveTo(mx, my, p2.x, p2.y);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.shadowBlur = 0;
-  ctx.globalAlpha = 1;
-
-  // Flowing traffic dots on connected calls.
-  if (!ringing) {
-    const dots = 3;
-    for (let i = 0; i < dots; i++) {
-      const phase = ((t / 1400) + i / dots) % 1;
-      const pt = quad(p1, { x: mx, y: my }, p2, phase);
-      ctx.fillStyle = color;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 10 * dpr;
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 2.6 * dpr, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    }
-    // Live duration near the midpoint.
-    const dur = hms(Math.max(0, Date.now() - c.since), true);
-    label(mx, my - 12 * dpr, dur, color, 11);
-  }
-
-  // External number tag near the hub end.
-  const extLabel = c.fromId === EXTERNAL ? c.fromLabel : (c.toId === EXTERNAL ? c.toLabel : null);
-  if (extLabel) {
-    const near = c.fromId === EXTERNAL ? p1 : p2;
-    const tx = near.x + (hub.x - near.x) * 0.18;
-    const ty = near.y + (hub.y - near.y) * 0.18;
-    label(tx, ty, extLabel, ringing ? COLORS.amber : COLORS.green, 11);
-  }
-}
-
-function drawStation(s, t) {
-  const p = stationPos.get(s.id);
-  if (!p) return;
-  const color =
-    s.status === 'busy' ? COLORS.green :
-    s.status === 'ringing' ? COLORS.amber : COLORS.dim;
-  const active = s.status !== 'idle';
-  const r = 9 * dpr;
-
-  if (s.status === 'ringing') {
-    const pr = r + (4 + 4 * Math.sin(t / 120)) * dpr;
-    ring(p.x, p.y, pr, COLORS.amber, 0.5);
-  }
-
-  // node
-  ctx.beginPath();
-  ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-  ctx.fillStyle = active ? color : COLORS.bg;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2 * dpr;
-  ctx.shadowColor = active ? color : 'transparent';
-  ctx.shadowBlur = active ? 12 * dpr : 0;
-  ctx.fill();
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // labels, pushed outward from center
-  const out = p.a;
-  const lx = p.x + Math.cos(out) * 20 * dpr;
-  const ly = p.y + Math.sin(out) * 20 * dpr;
-  const alignRight = Math.cos(out) < -0.2;
-  const alignLeft = Math.cos(out) > 0.2;
-  ctx.textAlign = alignRight ? 'right' : alignLeft ? 'left' : 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = `${13 * dpr}px "DejaVu Sans Mono", Menlo, monospace`;
-  ctx.fillStyle = active ? COLORS.ink : COLORS.dim;
-  ctx.fillText(s.id, lx, ly);
-  // Only show the secondary label when it's a real name (not a repeat of the number).
-  if (s.name && s.name !== s.id) {
-    ctx.font = `${10 * dpr}px "DejaVu Sans Mono", Menlo, monospace`;
-    ctx.fillStyle = COLORS.dim;
-    ctx.fillText(s.name, lx, ly + 14 * dpr);
-  }
-  ctx.textAlign = 'start';
-}
-
-function drawHub(t) {
-  const active = state.calls.some((c) => c.fromId === EXTERNAL || c.toId === EXTERNAL);
-  ring(hub.x, hub.y, hub.r + 4 * dpr * (1 + 0.15 * Math.sin(t / 300)), COLORS.hub, 0.25);
-
+  if (!hub.r) return;
+  ctx.strokeStyle = 'rgba(47,134,224,0.18)';
+  ctx.lineWidth = 1 * dpr;
   ctx.beginPath();
   ctx.arc(hub.x, hub.y, hub.r, 0, Math.PI * 2);
-  ctx.fillStyle = '#120d02';
-  ctx.strokeStyle = COLORS.hub;
-  ctx.lineWidth = 2.5 * dpr;
-  ctx.shadowColor = COLORS.hub;
-  ctx.shadowBlur = (active ? 22 : 12) * dpr;
+  ctx.stroke();
+}
+
+function drawRoute(c) {
+  const p1 = posOf(c.fromId), p2 = posOf(c.toId);
+  const ringing = c.state !== 'connected';
+  const color = ringing ? COLORS.amber : COLORS.green;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = (ringing ? 1.4 : 2.4) * dpr;
+  if (ringing) ctx.setLineDash([5 * dpr, 5 * dpr]);
+  ctx.globalAlpha = ringing ? 0.75 : 1;
+  ctx.beginPath();
+  ctx.moveTo(p1.x, p1.y);
+  ctx.lineTo(p2.x, p2.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+}
+
+function drawStation(s) {
+  const p = stationPos.get(s.id);
+  if (!p) return;
+  const color = stationColor(s.status);
+  const active = s.status !== 'idle';
+  const r = 7 * dpr;
+
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+  ctx.fillStyle = active ? color : COLORS.navy;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2 * dpr;
+  if (active) { ctx.shadowColor = color; ctx.shadowBlur = 10 * dpr; }
   ctx.fill();
   ctx.stroke();
   ctx.shadowBlur = 0;
 
-  ctx.fillStyle = COLORS.hub;
-  ctx.textAlign = 'center';
+  // number, pushed radially outward
+  const out = p.a;
+  const lx = p.x + Math.cos(out) * 18 * dpr;
+  const ly = p.y + Math.sin(out) * 18 * dpr;
+  ctx.textAlign = Math.cos(out) < -0.25 ? 'right' : Math.cos(out) > 0.25 ? 'left' : 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `700 ${13 * dpr}px "DejaVu Sans Mono", Menlo, monospace`;
-  ctx.fillText('LONG LINES', hub.x, hub.y - 6 * dpr);
-  ctx.font = `${10 * dpr}px "DejaVu Sans Mono", Menlo, monospace`;
-  ctx.fillStyle = COLORS.dim;
-  ctx.fillText('PSTN · TOLL', hub.x, hub.y + 10 * dpr);
-  ctx.textAlign = 'start';
+  ctx.font = `${13 * dpr}px ${cssFont()}`;
+  ctx.fillStyle = active ? COLORS.ink : COLORS.inkDim;
+  ctx.fillText(s.id, lx, ly);
 }
 
-// ---- small helpers --------------------------------------------------------
-function ring(x, y, r, color, alpha) {
-  ctx.globalAlpha = alpha;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1.5 * dpr;
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
+function drawHub() {
+  const w = hub.w, h = hub.h;
+  const x = hub.x - w / 2, y = hub.y - h / 2;
+  roundRect(x, y, w, h, 4 * dpr);
+  ctx.fillStyle = COLORS.panel;
+  ctx.fill();
+  ctx.strokeStyle = COLORS.bell;
+  ctx.lineWidth = 2 * dpr;
   ctx.stroke();
-  ctx.globalAlpha = 1;
-}
 
-function label(x, y, text, color, size) {
-  ctx.font = `${size * dpr}px "DejaVu Sans Mono", Menlo, monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const w = ctx.measureText(text).width + 8 * dpr;
-  ctx.fillStyle = 'rgba(5,8,10,0.85)';
-  ctx.fillRect(x - w / 2, y - 8 * dpr, w, 16 * dpr);
-  ctx.fillStyle = color;
-  ctx.fillText(text, x, y);
-  ctx.textAlign = 'start';
+  ctx.fillStyle = COLORS.bell;
+  ctx.font = `700 ${15 * dpr}px ${cssFont()}`;
+  ctx.fillText('LONG LINES', hub.x, hub.y - 8 * dpr);
+  ctx.fillStyle = COLORS.inkDim;
+  ctx.font = `${10 * dpr}px ${cssFont()}`;
+  ctx.fillText('PSTN · TOLL GATEWAY', hub.x, hub.y + 10 * dpr);
 }
 
-function quad(p0, p1, p2, t) {
-  const u = 1 - t;
-  return {
-    x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x,
-    y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y,
-  };
+// ---- Alert & Alarm list ----
+function renderList() {
+  const ul = document.getElementById('calllist');
+  const empty = document.getElementById('calllist-empty');
+  const calls = [...state.calls].sort((a, b) => a.since - b.since);
+  empty.style.display = calls.length ? 'none' : 'block';
+
+  ul.innerHTML = '';
+  const rowH = 34;
+  const max = Math.max(1, Math.floor((ul.clientHeight || 300) / rowH));
+  for (const c of calls.slice(0, max)) {
+    const li = document.createElement('li');
+    li.className = c.state === 'connected' ? 'busy' : 'ringing';
+    const from = c.fromId === EXTERNAL ? (c.fromLabel || 'OUTSIDE') : `STA ${c.fromId}`;
+    const to = c.toId === EXTERNAL ? (c.toLabel || 'OUTSIDE') : `STA ${c.toId}`;
+    const dur = c.state === 'connected' ? hms(Date.now() - c.since, true) : '';
+    li.innerHTML =
+      `<span class="state">${c.state === 'connected' ? 'CONN' : 'RING'}</span>` +
+      `<span class="route">${esc(from)} <span class="to">▸ ${esc(to)}</span></span>` +
+      `<span class="dur">${dur}</span>`;
+    ul.appendChild(li);
+  }
+}
+
+// ---- helpers ----
+function cssFont() { return `"Helvetica Neue", Helvetica, Arial, sans-serif`; }
+function esc(s) { return String(s).replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 
 function hms(ms, short = false) {
-  const s = Math.floor(ms / 1000);
-  const hh = Math.floor(s / 3600);
-  const mm = Math.floor((s % 3600) / 60);
-  const ss = s % 60;
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
   const p = (n) => String(n).padStart(2, '0');
-  if (short && hh === 0) return `${p(mm)}:${p(ss)}`;
-  return `${p(hh)}:${p(mm)}:${p(ss)}`;
+  return short && hh === 0 ? `${p(mm)}:${p(ss)}` : `${p(hh)}:${p(mm)}:${p(ss)}`;
 }
 
 function tickClock() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
+  const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const mons = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  document.getElementById('date').textContent = `${days[d.getDay()]} ${mons[d.getMonth()]} ${d.getDate()}`;
   document.getElementById('clock').textContent = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-// ---- boot -----------------------------------------------------------------
+// ---- boot ----
 window.addEventListener('resize', resize);
 setInterval(tickClock, 250);
+setInterval(renderList, 1000); // keep connected-call durations current
 tickClock();
 resize();
 connect();
-requestAnimationFrame(draw);

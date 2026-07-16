@@ -12,7 +12,8 @@ const env = process.env;
 
 export const config = {
   site: raw.site ?? 'BELL SYSTEM',
-  subtitle: raw.subtitle ?? 'LONG LINES — LIVE TRAFFIC',
+  subtitle: raw.subtitle ?? 'NETWORK OPERATIONS CENTER',
+  exhibit: env.PBXV_EXHIBIT ?? raw.exhibit ?? 'HELLO!',
   mode: env.PBXV_MODE ?? raw.mode ?? 'simulate',
   port: Number(env.PBXV_PORT ?? raw.port ?? 8080),
   ami: {

@@ -28,6 +28,7 @@ const MIME = {
 const state = new CallState(config.stations);
 state.site = config.site;
 state.subtitle = config.subtitle;
+state.exhibit = config.exhibit;
 
 // --- HTTP: serve the ./public directory -----------------------------------
 const server = http.createServer(async (req, res) => {
