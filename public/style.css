@@ -87,6 +87,22 @@ html, body {
 .sw.toll     { background: var(--green);   box-shadow: 0 0 8px var(--green); }
 .sw.msg      { background: var(--magenta); box-shadow: 0 0 8px var(--magenta); }
 
+/* Diagram-key marks: —o subscriber line, <-> trunk line */
+.sub, .trunk { position: relative; width: 26px; height: 10px; display: inline-block; }
+.sub::before, .trunk::before {
+  content: ""; position: absolute; left: 0; top: 50%; width: 100%;
+  border-top: 1px solid #2b4f47;
+}
+.sub::after {
+  content: ""; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  width: 6px; height: 6px; border: 1px solid #2b4f47; border-radius: 50%;
+  background: var(--bg);
+}
+.trunk::after {
+  content: "◂        ▸"; position: absolute; left: -1px; top: 50%;
+  transform: translateY(-50%); font-size: 9px; color: #2b4f47; letter-spacing: 0;
+}
+
 /* ---- CRT scanlines ---- */
 .scanlines {
   pointer-events: none;
