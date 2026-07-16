@@ -1,0 +1,121 @@
+/* Admin UI — same monochrome drafting language as the board, but built for
+   hands: bigger targets, real contrast, and a visible cursor. */
+@font-face {
+  font-family: "Prestige Elite Std";
+  src: url("fonts/PrestigeEliteStd.woff2") format("woff2"),
+       url("fonts/PrestigeEliteStd.woff") format("woff"),
+       url("fonts/PrestigeEliteStd.otf") format("opentype"),
+       url("fonts/PrestigeEliteStd.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --paper: #ffffff;
+  --ink: #000000;
+  --rule: #000000;
+  --muted: #5b5b5b;
+  --hairline: #d5d5d5;
+  --font: "Prestige Elite Std", "Courier Prime", "Courier New", Courier, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  padding-bottom: 90px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 26px 34px 18px;
+}
+.titlebox { border: 2px solid var(--ink); padding: 7px 16px; }
+.titlebox h1 { margin: 0; font-size: 22px; font-weight: 400; letter-spacing: 1px; }
+.viewlink { color: var(--ink); }
+
+main { padding: 0 34px; max-width: 1100px; }
+
+.card {
+  border: 1px solid var(--rule);
+  padding: 18px 20px 20px;
+  margin-bottom: 22px;
+}
+.card h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: 8px;
+}
+.count { color: var(--muted); }
+.hint { color: var(--muted); font-size: 13px; margin: 8px 0 12px; line-height: 1.5; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+input, select {
+  font-family: var(--font);
+  font-size: 15px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  padding: 8px 10px;
+  border-radius: 0;
+}
+input:focus, select:focus { outline: 2px solid var(--ink); outline-offset: -2px; }
+
+table { width: 100%; border-collapse: collapse; }
+td { padding: 4px 6px 4px 0; }
+td.ext { width: 130px; }
+td.nm { }
+td.act { width: 46px; text-align: right; }
+table input { width: 100%; }
+
+button {
+  font-family: var(--font);
+  font-size: 14px;
+  padding: 8px 14px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+}
+button:hover { background: #f0f0f0; }
+button.primary { background: var(--ink); color: var(--paper); }
+button.primary:hover { background: #333; }
+button.ghost { border-style: dashed; }
+button.del { border: none; font-size: 18px; padding: 2px 8px; line-height: 1; }
+.rowbtns { display: flex; gap: 10px; margin-top: 12px; }
+
+footer {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  background: var(--paper);
+  border-top: 2px solid var(--ink);
+  padding: 14px 34px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+#status { color: var(--muted); font-size: 13px; }
+
+.flash {
+  margin: 0 34px 18px;
+  padding: 10px 14px;
+  border: 1px solid var(--ink);
+  font-size: 14px;
+}
+.flash.err { background: #000; color: #fff; }

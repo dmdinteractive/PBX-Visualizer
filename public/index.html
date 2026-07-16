@@ -3,52 +3,39 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>HELLO! — Bell System Long Lines</title>
+  <title>HELLO! — Live Telephony Diagram</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="frame">
+  <canvas id="scope"></canvas>
 
-    <header id="topbar">
-      <div class="brand">
-        <svg class="bell-logo" viewBox="0 0 64 64" aria-hidden="true">
-          <circle cx="32" cy="32" r="30" class="bell-ring" />
-          <path class="bell-body" d="M21 43 C21 29 24.5 21 32 21 C39.5 21 43 29 43 43 Z" />
-          <rect class="bell-body" x="17" y="43" width="30" height="3.4" rx="1.2" />
-          <circle class="bell-body" cx="32" cy="17.5" r="3.1" />
-          <circle class="bell-body" cx="32" cy="49.5" r="2.4" />
-        </svg>
-        <span id="site">BELL SYSTEM</span>
-        <span class="sep">//</span>
-        <span id="exhibit-title">HELLO!</span>
-      </div>
-      <div class="readout">
-        <span id="clock">--:--:--</span>
-        <span id="link" class="link down">LINK DOWN</span>
-      </div>
-    </header>
-
-    <canvas id="scope"></canvas>
-
-    <footer id="statusbar">
-      <div class="stat"><label>IN PROGRESS</label><span id="s-active">0</span></div>
-      <div class="stat"><label>RINGING</label><span id="s-ringing">0</span></div>
-      <div class="stat"><label>ON RECORDING</label><span id="s-messages">0</span></div>
-      <div class="stat"><label>CALLS TODAY</label><span id="s-handled">0</span></div>
-      <div class="stat"><label>UPTIME</label><span id="s-uptime">00:00:00</span></div>
-      <div class="legend">
-        <span class="key"><i class="sub"></i>SUBSCRIBER LINE</span>
-        <span class="key"><i class="trunk"></i>TRUNK LINE</span>
-        <span class="key"><i class="sw ringing"></i>RINGING</span>
-        <span class="key"><i class="sw internal"></i>PHONE&nbsp;↔&nbsp;PHONE</span>
-        <span class="key"><i class="sw toll"></i>TOLL</span>
-        <span class="key"><i class="sw msg"></i>GHOST</span>
-      </div>
-    </footer>
-
+  <!-- Title block, drawn like the heading on the CMD Networking diagrams -->
+  <div id="titleblock">
+    <h1><span id="exhibit-title">HELLO!</span> <span id="subtitle">LIVE TELEPHONY DIAGRAM</span></h1>
   </div>
 
-  <div class="scanlines" aria-hidden="true"></div>
+  <!-- Explanatory text block, in the place the source diagram puts its notes -->
+  <div id="notes">
+    <div class="row"><span class="k">Calls in progress</span><span class="v" id="s-active">0</span></div>
+    <div class="row"><span class="k">Ringing</span><span class="v" id="s-ringing">0</span></div>
+    <div class="row"><span class="k">On automated message</span><span class="v" id="s-messages">0</span></div>
+    <div class="row"><span class="k">Calls today</span><span class="v" id="s-handled">0</span></div>
+    <div class="row"><span class="k">Subscriber lines</span><span class="v" id="s-lines">0</span></div>
+    <div class="spacer"></div>
+    <div class="row"><span class="k">Time</span><span class="v" id="clock">--:--:--</span></div>
+    <div class="row"><span class="k">Uptime</span><span class="v" id="s-uptime">00:00:00</span></div>
+    <div class="row"><span class="k">Switch link</span><span class="v" id="link">--</span></div>
+  </div>
+
+  <!-- Key, bottom right, as on the source diagram -->
+  <div id="key">
+    <div class="krow"><svg viewBox="0 0 60 12"><line x1="2" y1="6" x2="46" y2="6"/><circle cx="51" cy="6" r="4"/></svg><span>Subscriber Line</span></div>
+    <div class="krow"><svg viewBox="0 0 60 12"><line x1="6" y1="6" x2="54" y2="6"/><polygon points="2,6 9,3 9,9"/><polygon points="58,6 51,3 51,9"/></svg><span>Trunk Line</span></div>
+    <div class="krow"><svg viewBox="0 0 60 12"><circle cx="30" cy="6" r="4"/></svg><span>On&#8209;Hook</span></div>
+    <div class="krow"><svg viewBox="0 0 60 12"><circle cx="30" cy="6" r="4" class="fill"/></svg><span>In Use</span></div>
+    <div class="krow"><svg viewBox="0 0 60 12"><line x1="2" y1="6" x2="58" y2="6" stroke-dasharray="5 4"/></svg><span>Ringing</span></div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>

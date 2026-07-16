@@ -1,0 +1,69 @@
+{
+  "//": "Template. On first run this is copied to config.json, which is NOT tracked in git (it holds your AMI secret and is rewritten by the admin UI at /admin). Edit config.json, not this file.",
+
+  "exhibit": "HELLO!",
+  "subtitle": "LIVE TELEPHONY DIAGRAM",
+  "site": "BELL SYSTEM",
+
+  "//nodes": "Labels for the three nodes on the diagram.",
+  "officeName": "CENTRAL SWITCHING OFFICE",
+  "messagesName": "AUTOMATED MESSAGES",
+  "tollName": "LONG LINES",
+
+  "//mode": "simulate = fake traffic for setup/demo. ami = live PBX.",
+  "mode": "simulate",
+  "port": 8080,
+
+  "ami": {
+    "host": "10.10.2.57",
+    "port": 5038,
+    "username": "visualizer",
+    "secret": ""
+  },
+
+  "//stations": "The visitor handsets, 101-131. Anything not listed here or in services is treated as the outside world.",
+  "stations": [
+    { "id": "101", "name": "" },
+    { "id": "102", "name": "" },
+    { "id": "103", "name": "" },
+    { "id": "104", "name": "" },
+    { "id": "105", "name": "" },
+    { "id": "106", "name": "" },
+    { "id": "107", "name": "" },
+    { "id": "108", "name": "" },
+    { "id": "109", "name": "" },
+    { "id": "110", "name": "" },
+    { "id": "111", "name": "" },
+    { "id": "112", "name": "" },
+    { "id": "113", "name": "" },
+    { "id": "114", "name": "" },
+    { "id": "115", "name": "" },
+    { "id": "116", "name": "" },
+    { "id": "117", "name": "" },
+    { "id": "118", "name": "" },
+    { "id": "119", "name": "" },
+    { "id": "120", "name": "" },
+    { "id": "121", "name": "" },
+    { "id": "122", "name": "" },
+    { "id": "123", "name": "" },
+    { "id": "124", "name": "" },
+    { "id": "125", "name": "" },
+    { "id": "126", "name": "" },
+    { "id": "127", "name": "" },
+    { "id": "128", "name": "" },
+    { "id": "129", "name": "" },
+    { "id": "130", "name": "" },
+    { "id": "131", "name": "" }
+  ],
+
+  "//services": "The ghost extensions 201-207 that extension 500 routes to on its 25% branch. Name them for the display.",
+  "services": [
+    { "id": "201", "name": "" },
+    { "id": "202", "name": "" },
+    { "id": "203", "name": "" },
+    { "id": "204", "name": "" },
+    { "id": "205", "name": "" },
+    { "id": "206", "name": "" },
+    { "id": "207", "name": "" }
+  ]
+}

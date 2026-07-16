@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HELLO! — Exhibit Settings</title>
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <header>
+    <div class="titlebox"><h1>HELLO! &nbsp;EXHIBIT SETTINGS</h1></div>
+    <a class="viewlink" href="/" target="_blank">Open the board &#8599;</a>
+  </header>
+
+  <div id="flash" class="flash" hidden></div>
+
+  <main>
+    <section class="card">
+      <h2>Identity</h2>
+      <div class="grid">
+        <label>Exhibit name<input id="exhibit" placeholder="HELLO!" /></label>
+        <label>Subtitle<input id="subtitle" placeholder="LIVE TELEPHONY DIAGRAM" /></label>
+        <label>Central node<input id="officeName" placeholder="CENTRAL SWITCHING OFFICE" /></label>
+        <label>Messages node<input id="messagesName" placeholder="AUTOMATED MESSAGES" /></label>
+        <label>Toll node<input id="tollName" placeholder="LONG LINES" /></label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Switch connection</h2>
+      <div class="grid">
+        <label>Mode
+          <select id="mode">
+            <option value="ami">Live PBX (AMI)</option>
+            <option value="simulate">Simulate traffic</option>
+          </select>
+        </label>
+        <label>PBX address<input id="amiHost" placeholder="10.10.2.57" /></label>
+        <label>AMI port<input id="amiPort" placeholder="5038" /></label>
+        <label>AMI username<input id="amiUser" placeholder="visualizer" /></label>
+        <label>AMI secret<input id="amiSecret" type="password" placeholder="(unchanged)" /></label>
+      </div>
+      <p class="hint">Changing any of these reconnects the switch link immediately &mdash; no restart needed.</p>
+    </section>
+
+    <section class="card">
+      <h2>Phones <span class="count" id="stationCount">0</span></h2>
+      <p class="hint">The visitor handsets. Extension must match FreePBX (101&ndash;131). Anything not listed here is treated as the outside world.</p>
+      <table id="stations"><tbody></tbody></table>
+      <div class="rowbtns">
+        <button type="button" data-add="stations">+ Add phone</button>
+        <button type="button" class="ghost" id="addRange">+ Add a range&hellip;</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Automated messages <span class="count" id="serviceCount">0</span></h2>
+      <p class="hint">The ghost extensions (201&ndash;207). Extension 500 routes here on the 25% branch.</p>
+      <table id="services"><tbody></tbody></table>
+      <div class="rowbtns">
+        <button type="button" data-add="services">+ Add message</button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <button id="save" class="primary">Save changes</button>
+    <button id="reload" class="ghost">Discard &amp; reload</button>
+    <span id="status"></span>
+  </footer>
+
+  <script src="admin.js"></script>
+</body>
+</html>

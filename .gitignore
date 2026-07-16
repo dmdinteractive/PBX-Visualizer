@@ -1,4 +1,13 @@
 node_modules/
 npm-debug.log*
 .DS_Store
-config.local.json
+
+# Per-installation config: holds the AMI secret and is rewritten by /admin.
+# Copied from config.example.json on first run.
+config.json
+
+# Licensed font, supplied per-installation (see public/fonts/README.md)
+public/fonts/*.woff2
+public/fonts/*.woff
+public/fonts/*.otf
+public/fonts/*.ttf

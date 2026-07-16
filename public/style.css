@@ -1,19 +1,36 @@
 /* ============================================================
-   HELLO! — Bell System Long Lines exhibit
-   Black CRT board, vibrant retro phosphor colors, monospace.
+   HELLO! — Live Telephony Diagram
+   Monochrome: black line-art on white, after the CMD Networking
+   Telephony Diagram. No colour, no glow, no scanlines.
    ============================================================ */
+
+/* Prestige Elite Std is a licensed Adobe face, so it can't ship with this
+   repo. Drop the font file into public/fonts/ (see public/fonts/README.md)
+   and it is picked up automatically; until then the stack falls back to a
+   typewriter face that reads the same way. */
+@font-face {
+  font-family: "Prestige Elite Std";
+  src: url("fonts/PrestigeEliteStd.woff2") format("woff2"),
+       url("fonts/PrestigeEliteStd.woff") format("woff"),
+       url("fonts/PrestigeEliteStd.otf") format("opentype"),
+       url("fonts/PrestigeEliteStd.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Prestige Elite Std";
+  src: url("fonts/PrestigeEliteStd-Bd.woff2") format("woff2"),
+       url("fonts/PrestigeEliteStd-Bd.woff") format("woff"),
+       url("fonts/PrestigeEliteStd-Bd.otf") format("opentype"),
+       url("fonts/PrestigeEliteStd-Bd.ttf") format("truetype");
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
-  --bg:       #000000;  /* black board */
-  --grid:     #0b1a16;  /* faint grid */
-  --amber:    #ffb000;  /* ringing */
-  --green:    #33ff77;  /* toll / outside call in progress */
-  --cyan:     #35e0ff;  /* station-to-station call */
-  --magenta:  #ff5edc;  /* recorded message */
-  --violet:   #b06bff;  /* recorded message node */
-  --dim:      #3f6b60;  /* on-hook / idle */
-  --ink:      #d6f5e8;  /* text */
-  --red:      #ff4a3d;  /* alarm / link down */
-  --font: "DejaVu Sans Mono", "Menlo", "Consolas", monospace;
+  --paper: #ffffff;
+  --ink: #000000;
+  --font: "Prestige Elite Std", "Courier Prime", "Courier New", Courier, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -21,99 +38,58 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: var(--bg);
+  background: var(--paper);
   color: var(--ink);
   font-family: var(--font);
   overflow: hidden;
   cursor: none;
 }
 
-#frame {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-}
+#scope { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 
-/* ---- top bar ---- */
-#topbar, #statusbar {
-  background: #000;
-  border-bottom: 1px solid #12302a;
+/* ---- title block (boxed heading, as on the diagram) ---- */
+#titleblock {
+  position: fixed;
+  top: 26px;
+  left: 34px;
+  border: 2px solid var(--ink);
   padding: 8px 18px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  letter-spacing: 2px;
 }
-#statusbar {
-  border-bottom: none;
-  border-top: 1px solid #12302a;
-  gap: 26px;
-  justify-content: flex-start;
-  font-size: 13px;
+#titleblock h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: 1px;
+  white-space: nowrap;
 }
+#titleblock #exhibit-title { font-weight: 700; }
+#titleblock #subtitle { }
 
-.brand { display: flex; align-items: center; gap: 12px; font-size: 20px; }
-.bell-logo { width: 30px; height: 30px; }
-.bell-logo .bell-ring { fill: none; stroke: var(--amber); stroke-width: 2.5; }
-.bell-logo .bell-body { fill: var(--amber); }
-.brand #site { color: var(--amber); font-weight: 700; text-shadow: 0 0 10px rgba(255,176,0,.45); }
-.brand .sep { color: var(--dim); }
-.brand #exhibit-title { color: var(--cyan); font-weight: 700; text-shadow: 0 0 12px rgba(53,224,255,.5); }
-
-.readout { display: flex; align-items: center; gap: 18px; font-size: 15px; }
-#clock { color: var(--green); letter-spacing: 3px; }
-.link { padding: 3px 10px; border: 1px solid currentColor; border-radius: 2px; font-size: 12px; }
-.link.up { color: var(--green); }
-.link.down { color: var(--red); }
-
-/* ---- board ---- */
-#scope { width: 100%; height: 100%; display: block; }
-
-/* ---- status bar ---- */
-.stat { display: flex; align-items: center; gap: 8px; }
-.stat label { color: var(--dim); }
-.stat span { color: var(--ink); font-size: 18px; min-width: 2ch; }
-#s-active { color: var(--green); }
-#s-ringing { color: var(--amber); }
-#s-messages { color: var(--magenta); }
-
-.legend { margin-left: auto; display: flex; gap: 16px; color: var(--dim); font-size: 12px; }
-.legend .key { display: flex; align-items: center; gap: 6px; }
-.sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-.sw.idle     { background: var(--dim); }
-.sw.ringing  { background: var(--amber);   box-shadow: 0 0 8px var(--amber); }
-.sw.internal { background: var(--cyan);    box-shadow: 0 0 8px var(--cyan); }
-.sw.toll     { background: var(--green);   box-shadow: 0 0 8px var(--green); }
-.sw.msg      { background: var(--magenta); box-shadow: 0 0 8px var(--magenta); }
-
-/* Diagram-key marks: —o subscriber line, <-> trunk line */
-.sub, .trunk { position: relative; width: 26px; height: 10px; display: inline-block; }
-.sub::before, .trunk::before {
-  content: ""; position: absolute; left: 0; top: 50%; width: 100%;
-  border-top: 1px solid #2b4f47;
-}
-.sub::after {
-  content: ""; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
-  width: 6px; height: 6px; border: 1px solid #2b4f47; border-radius: 50%;
-  background: var(--bg);
-}
-.trunk::after {
-  content: "◂        ▸"; position: absolute; left: -1px; top: 50%;
-  transform: translateY(-50%); font-size: 9px; color: #2b4f47; letter-spacing: 0;
-}
-
-/* ---- CRT scanlines ---- */
-.scanlines {
-  pointer-events: none;
+/* ---- notes block, under the title, as on the diagram ---- */
+#notes {
   position: fixed;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(0,0,0,0) 0px,
-    rgba(0,0,0,0) 2px,
-    rgba(0,0,0,0.20) 3px,
-    rgba(0,0,0,0.20) 3px
-  );
-  mix-blend-mode: multiply;
+  top: 104px;
+  left: 34px;
+  font-size: 15px;
+  line-height: 1.55;
 }
+#notes .row { display: flex; gap: 8px; }
+#notes .k { min-width: 210px; }
+#notes .k::after { content: ""; }
+#notes .v { font-weight: 700; }
+#notes .spacer { height: 14px; }
+
+/* ---- key, bottom right, as on the diagram ---- */
+#key {
+  position: fixed;
+  right: 40px;
+  bottom: 32px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+#key .krow { display: flex; align-items: center; gap: 12px; }
+#key svg { width: 60px; height: 12px; overflow: visible; }
+#key svg line { stroke: var(--ink); stroke-width: 1.4; }
+#key svg circle { fill: var(--paper); stroke: var(--ink); stroke-width: 1.4; }
+#key svg circle.fill { fill: var(--ink); }
+#key svg polygon { fill: var(--ink); }

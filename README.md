@@ -1,128 +1,119 @@
-# PBX Long Lines Visualizer
+# HELLO! — Live Telephony Diagram
 
-A live, retro **AT&T Long Lines / Bell System** style traffic display for your
-Crosstalk 760 / FreePBX phone system. Extensions sit around a ring as switching
-stations; a central **LONG LINES / PSTN** toll hub represents the outside world.
-Ringing calls pulse amber, connected calls flow green, and outside calls route
-to the hub — all updating live on a TV.
+A live, monochrome telephony diagram for the **Hello! Exhibit** phone system,
+drawn in the language of the CMD Networking telephony diagrams: a
+**CENTRAL SWITCHING OFFICE** with every visitor handset on its own subscriber
+line, an **AUTOMATED MESSAGES** node the ghost extensions hang off, and a
+bidirectional trunk line out to **LONG LINES**.
+
+Calls appear live as arcs from caller to destination:
+open circle = on-hook · filled circle = in use · dashed = ringing.
 
 ```
  FreePBX / Asterisk  ──AMI events──▶  this Node service  ──WebSocket──▶  browser (fullscreen TV)
+                                            └── admin UI at /admin
 ```
 
-It ships with a **simulator** so it looks alive the moment you start it — before
-you've touched the PBX. Flip one setting to switch to your live phone system.
+It reads the [Hello! exhibit dialplan](https://github.com/dmdinteractive/Hello_Exhibit_PBX):
+a visitor lifts a handset, PLAR dials **500**, and the switch connects them to a
+random real phone (101–131, 75%) or a **ghost** recording (201–207, 25%).
+Extension **501** carries inbound calls from the published number to real phones
+only. Nobody can dial out.
 
 ---
 
-## 1. Quick start (see it running in 2 minutes)
-
-On any computer with [Node.js 18+](https://nodejs.org):
+## Quick start
 
 ```bash
-cd "PBX Visualizer"
 npm install
 npm start
 ```
 
-Open **http://localhost:8080** in a browser. You'll see simulated traffic
-immediately. Press F11 for fullscreen. That's the whole look — now let's make it
-show *your* phones.
+- Board: **http://localhost:8080**
+- Settings: **http://localhost:8080/admin**
+
+First run copies `config.example.json` → `config.json` and starts in
+**simulate** mode, so the board is alive immediately without a PBX.
 
 ---
 
-## 2. Configure your extensions
+## Settings
 
-Edit [`config.json`](config.json). Replace the sample `stations` with your real
-extensions — the `id` must match the extension number in FreePBX; `name` is just
-a friendly label shown on screen:
+Everything is editable in the **admin UI at `/admin`** — exhibit name, node
+labels, the switch connection, and the list of phones and automated messages
+(with an "add a range" helper for 101–131). Saving writes `config.json` and
+applies to the running board immediately; changing the switch connection
+reconnects AMI without a restart.
 
-```json
-"stations": [
-  { "id": "1001", "name": "FRONT DESK" },
-  { "id": "1002", "name": "SALES" }
-]
-```
+`config.json` is **not tracked in git** — it holds your AMI secret and the admin
+UI rewrites it. Keep `config.example.json` as the template.
 
-Anything **not** in this list (mobile numbers, landlines, trunks) is treated as
-an outside line and routed to the LONG LINES hub. You can also set `site` and
-`subtitle` for the header text.
+| Setting | Meaning |
+|---|---|
+| `mode` | `simulate` (fake traffic) or `ami` (live PBX) |
+| `exhibit`, `subtitle` | Title block text |
+| `officeName`, `messagesName`, `tollName` | The three node labels |
+| `stations[]` | Visitor handsets, `{ "id", "name" }` |
+| `services[]` | Ghost extensions 201–207 |
+| `ami.*` | FreePBX host / port / username / secret |
 
----
-
-## 3. Connect it to FreePBX (go live)
-
-### a) Create an AMI (Manager) user in FreePBX
-
-1. In the FreePBX web UI: **Settings → Asterisk Manager Users → Add Manager**.
-2. Set:
-   - **Manager name:** `visualizer`
-   - **Manager secret:** a strong password (you'll paste it into config)
-   - **Deny:** `0.0.0.0/0.0.0.0`
-   - **Permit:** the IP of the device running this visualizer, e.g.
-     `192.168.1.50/255.255.255.255` (or your LAN, e.g. `192.168.1.0/255.255.255.0`)
-   - **Read permissions:** tick **call** and **system** (read is enough — this
-     tool never sends commands that change calls)
-   - **Write permissions:** none needed
-3. Submit and **Apply Config**.
-
-> Prefer the file? The same thing lives in `/etc/asterisk/manager.conf` (or
-> `manager_custom.conf`). AMI listens on TCP **5038**; keep that port on the LAN
-> only — never expose it to the internet.
-
-### b) Point the visualizer at your PBX
-
-In `config.json`:
-
-```json
-"mode": "ami",
-"ami": {
-  "host": "192.168.1.10",     // your FreePBX box IP
-  "port": 5038,
-  "username": "visualizer",
-  "secret": "the-password-you-set"
-}
-```
-
-Restart (`npm start`). The header should read **LINK ACTIVE** and real calls
-will appear. To keep the secret out of the file, leave it blank and pass
-`PBXV_AMI_SECRET=... npm start` instead.
-
-Make a test call between two extensions — you should see them light up and a line
-connect them.
+Env overrides: `PBXV_MODE`, `PBXV_PORT`, `PBXV_AMI_HOST`, `PBXV_AMI_PORT`,
+`PBXV_AMI_USER`, `PBXV_AMI_SECRET`, `PBXV_EXHIBIT`.
 
 ---
 
-## 4. Put it on the TV (single Raspberry Pi)
+## Connecting to FreePBX
 
-One Raspberry Pi runs **both** the service and the fullscreen display. A Pi 4 or
-Pi 5 is ideal. Use **Raspberry Pi OS (64-bit, Desktop)**.
+1. **Settings → Asterisk Manager Users → Add Manager**
+   - Manager name: `visualizer`, and a strong secret
+   - **Deny:** `0.0.0.0/0.0.0.0` · **Permit:** the Pi's IP, e.g. `10.10.2.156/255.255.255.255`
+   - **Read:** tick **Call** and **System**. **Write:** none.
+2. **Submit**, then **Apply Config**.
+3. AMI must listen beyond loopback — in `/etc/asterisk/manager.conf`:
+   ```ini
+   [general]
+   enabled = yes
+   port = 5038
+   bindaddr = 0.0.0.0
+   ```
+   then `asterisk -rx "manager reload"`. Verify with `ss -tlnp | grep 5038`.
+4. In `/admin`, set mode to **Live PBX (AMI)** and fill in the address/secret.
 
-### a) Install Node + the app
+Keep port 5038 on the LAN. Never expose it to the internet.
+
+---
+
+## The font
+
+The pages ask for **Prestige Elite Std** first. It's a licensed Adobe face, so
+it can't ship here — drop your copy into `public/fonts/` and it's picked up
+automatically. See [`public/fonts/README.md`](public/fonts/README.md). Until
+then it falls back to Courier Prime → Courier New → system monospace.
+
+---
+
+## Running it on the TV (Raspberry Pi)
+
+One Pi runs both the service and the fullscreen browser.
 
 ```bash
-sudo apt update && sudo apt install -y nodejs npm git
-git clone <this-folder-onto-the-pi>   # or copy it over with scp / a USB stick
-cd "PBX Visualizer"
-npm install
+sudo apt update && sudo apt install -y nodejs npm git chromium-browser unclutter
+git clone https://github.com/dmdinteractive/PBX-Visualizer.git ~/pbx-visualizer
+cd ~/pbx-visualizer && npm install && npm start
 ```
 
-Verify it runs: `npm start`, then browse to `http://localhost:8080` on the Pi.
-
-### b) Run it automatically on boot (systemd)
-
-Create `/etc/systemd/system/pbx-visualizer.service` (adjust the paths/user):
+**Auto-start** — `/etc/systemd/system/pbx-visualizer.service` (use your own user/path):
 
 ```ini
 [Unit]
-Description=PBX Long Lines Visualizer
+Description=HELLO! Telephony Diagram
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/PBX Visualizer
+User=aidankrempetz
+WorkingDirectory=/home/aidankrempetz/pbx-visualizer
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=5
@@ -132,30 +123,20 @@ WantedBy=multi-user.target
 ```
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now pbx-visualizer
+sudo systemctl daemon-reload && sudo systemctl enable --now pbx-visualizer
 ```
 
-### c) Launch Chromium fullscreen (kiosk) on boot
-
-Install Chromium and an idle-hider:
-
-```bash
-sudo apt install -y chromium-browser unclutter
-```
-
-Create `~/.config/autostart/kiosk.desktop`:
+**Kiosk** — `~/.config/autostart/kiosk.desktop`:
 
 ```ini
 [Desktop Entry]
 Type=Application
-Name=Long Lines Kiosk
-Exec=chromium-browser --kiosk --incognito --noerrdialogs --disable-infobars \
-     --check-for-update-interval=31536000 --app=http://localhost:8080
+Name=Hello Kiosk
+Exec=chromium-browser --kiosk --incognito --noerrdialogs --disable-infobars --check-for-update-interval=31536000 --app=http://localhost:8080
 X-GNOME-Autostart-enabled=true
 ```
 
-Prevent the screen from blanking — add to `~/.config/lxsession/LXDE-pi/autostart`:
+**No screen blanking** — `~/.config/lxsession/LXDE-pi/autostart`:
 
 ```
 @xset s off
@@ -164,54 +145,41 @@ Prevent the screen from blanking — add to `~/.config/lxsession/LXDE-pi/autosta
 @unclutter -idle 0
 ```
 
-Reboot. The Pi boots straight into the fullscreen visualizer. Done.
-
-> Tip: set the Pi to auto-login to the desktop with `sudo raspi-config` →
-> *System Options → Boot / Auto Login → Desktop Autologin*.
+Then `sudo raspi-config` → *System Options → Boot / Auto Login → Desktop Autologin*, and reboot.
 
 ---
 
-## Configuration reference
+## Day to day
 
-| Setting            | Meaning                                                        |
-|--------------------|----------------------------------------------------------------|
-| `mode`             | `simulate` (fake traffic) or `ami` (live PBX)                  |
-| `port`             | Web port (default 8080)                                        |
-| `site` / `subtitle`| Header text                                                   |
-| `stations[]`       | Your extensions: `{ "id", "name" }`                            |
-| `ami.host/port`    | FreePBX IP and AMI port (5038)                                 |
-| `ami.username`     | Manager username                                              |
-| `ami.secret`       | Manager secret (or via `PBXV_AMI_SECRET` env var)             |
+| Task | Command |
+|---|---|
+| Live logs | `journalctl -u pbx-visualizer -f` |
+| Restart | `sudo systemctl restart pbx-visualizer` |
+| Update | `cd ~/pbx-visualizer && git pull && npm install && sudo systemctl restart pbx-visualizer` |
 
-Env overrides: `PBXV_MODE`, `PBXV_PORT`, `PBXV_AMI_HOST`, `PBXV_AMI_PORT`,
-`PBXV_AMI_USER`, `PBXV_AMI_SECRET`.
+Most settings no longer need a restart — use `/admin`.
 
 ---
 
 ## How it works
 
-- **`lib/ami.js`** — connects to AMI, watches `DialBegin/DialEnd`,
-  `BridgeEnter/BridgeLeave`, and `Hangup`, and translates them into calls.
-- **`lib/state.js`** — the shared live picture of stations and calls.
-- **`lib/simulator.js`** — synthesizes realistic traffic for demo/setup.
-- **`server.js`** — serves the UI and pushes state over WebSocket.
-- **`public/`** — the retro canvas visualizer.
-
-Designed for ordinary two-party calls (the bulk of office traffic). Conference
-rooms and complex queue/ring-group flows still show up, just represented as the
-individual legs Asterisk reports.
+- **`lib/ami.js`** — AMI client. Watches `Dial*`, `Bridge*`, `Hangup`. Ghost legs
+  are `Local/<exten>@from-internal` channels with no endpoint, so they're
+  resolved by the extension in the channel name.
+- **`lib/state.js`** — the live picture: stations, services, calls.
+- **`lib/simulator.js`** — models the real dialplan (PLAR 75/25, inbound via 501,
+  never double-books a phone).
+- **`server.js`** — static files, `/api/config`, WebSocket broadcast.
+- **`public/`** — the board (`app.js`) and the admin UI (`admin.js`).
 
 ---
 
 ## Troubleshooting
 
-- **Header says LINK DOWN, no calls:** you're either in `simulate` mode, or the
-  browser can't reach the service. In `ami` mode also check the server console
-  for `[ami]` messages.
-- **`[ami] error response: Authentication failed`:** wrong username/secret, or
-  the device IP isn't in the manager user's **Permit** list.
-- **Connected but no calls appear:** confirm the manager user has **call** read
-  permission, and that your test call is between IDs listed (or correctly falls
-  to the hub as external).
-- **Nothing on port 5038:** make sure you're pointing at the FreePBX box IP and
-  that a firewall isn't blocking it on the LAN.
+- **`Authentication failed`** — wrong secret, or the Pi's IP isn't in the manager
+  user's **Permit** list.
+- **Switch link DOWN** — check the address in `/admin`; from the Pi try
+  `nc -zv <pbx-ip> 5038`. "Connection refused" means AMI isn't listening on the
+  LAN (see `bindaddr` above).
+- **A real call shows as an outside call** — that extension is missing from the
+  phones list in `/admin`.
