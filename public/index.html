@@ -3,89 +3,51 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>HELLO! — Bell System Network Operations Center</title>
+  <title>HELLO! — Bell System Long Lines</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="console">
+  <div id="frame">
 
-    <!-- ===== Masthead ===== -->
-    <header id="masthead">
+    <header id="topbar">
       <div class="brand">
         <svg class="bell-logo" viewBox="0 0 64 64" aria-hidden="true">
           <circle cx="32" cy="32" r="30" class="bell-ring" />
-          <path class="bell-body"
-                d="M21 43 C21 29 24.5 21 32 21 C39.5 21 43 29 43 43 Z" />
+          <path class="bell-body" d="M21 43 C21 29 24.5 21 32 21 C39.5 21 43 29 43 43 Z" />
           <rect class="bell-body" x="17" y="43" width="30" height="3.4" rx="1.2" />
           <circle class="bell-body" cx="32" cy="17.5" r="3.1" />
           <circle class="bell-body" cx="32" cy="49.5" r="2.4" />
         </svg>
-        <div class="wordmark">
-          <span class="line1">BELL SYSTEM</span>
-          <span class="line2">LONG&nbsp;LINES</span>
-        </div>
+        <span id="site">BELL SYSTEM</span>
+        <span class="sep">//</span>
+        <span id="exhibit-title">HELLO!</span>
       </div>
-
-      <div class="title-block">
-        <h1 id="exhibit-title">HELLO!</h1>
-        <div id="subtitle" class="subtitle">NETWORK OPERATIONS CENTER</div>
-      </div>
-
-      <div class="masthead-right">
-        <div class="datetime">
-          <span id="date">— — —</span>
-          <span id="clock">--:--:--</span>
-        </div>
-        <div id="sysstatus" class="sys normal"><label>SYSTEM</label><b>NORMAL</b></div>
+      <div class="readout">
+        <span id="clock">--:--:--</span>
+        <span id="link" class="link down">LINK DOWN</span>
       </div>
     </header>
 
-    <!-- ===== Big board + side panels ===== -->
-    <main id="board-area">
-      <section id="board" class="panel">
-        <div class="panel-label">
-          <span>TOLL NETWORK — STATUS BOARD</span>
-          <span id="link" class="link">LINK</span>
-        </div>
-        <div class="panel-body">
-          <canvas id="scope"></canvas>
-        </div>
-      </section>
+    <canvas id="scope"></canvas>
 
-      <aside id="sidepanels">
-        <section class="panel traffic">
-          <div class="panel-label"><span>TRAFFIC</span></div>
-          <div class="panel-body readout">
-            <div class="metric"><span class="num" id="s-active">0</span><label>IN PROGRESS</label></div>
-            <div class="metric"><span class="num" id="s-ringing">0</span><label>RINGING</label></div>
-            <div class="metric"><span class="num" id="s-handled">0</span><label>CALLS TODAY</label></div>
-          </div>
-        </section>
-
-        <section class="panel aa">
-          <div class="panel-label"><span>ALERT &amp; ALARM</span></div>
-          <div class="panel-body">
-            <ul id="calllist"></ul>
-            <div id="calllist-empty" class="empty">— NO ACTIVE CIRCUITS —</div>
-          </div>
-        </section>
-      </aside>
-    </main>
-
-    <!-- ===== Status bar ===== -->
     <footer id="statusbar">
+      <div class="stat"><label>IN PROGRESS</label><span id="s-active">0</span></div>
+      <div class="stat"><label>RINGING</label><span id="s-ringing">0</span></div>
+      <div class="stat"><label>ON RECORDING</label><span id="s-messages">0</span></div>
+      <div class="stat"><label>CALLS TODAY</label><span id="s-handled">0</span></div>
+      <div class="stat"><label>UPTIME</label><span id="s-uptime">00:00:00</span></div>
       <div class="legend">
-        <span class="key"><i class="sw busy"></i>IN PROGRESS</span>
-        <span class="key"><i class="sw ringing"></i>RINGING</span>
         <span class="key"><i class="sw idle"></i>ON-HOOK</span>
-        <span class="key"><i class="sw toll"></i>TOLL / OUTSIDE</span>
-      </div>
-      <div class="footer-right">
-        <span id="stations-count">0</span>&nbsp;STATIONS&nbsp;&nbsp;·&nbsp;&nbsp;UPTIME&nbsp;<span id="uptime">00:00:00</span>
+        <span class="key"><i class="sw ringing"></i>RINGING</span>
+        <span class="key"><i class="sw internal"></i>STATION</span>
+        <span class="key"><i class="sw toll"></i>TOLL</span>
+        <span class="key"><i class="sw msg"></i>RECORDING</span>
       </div>
     </footer>
 
   </div>
+
+  <div class="scanlines" aria-hidden="true"></div>
   <script src="app.js"></script>
 </body>
 </html>

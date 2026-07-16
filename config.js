@@ -24,4 +24,7 @@ export const config = {
   },
   // Keep only real station entries (drop the "//stations" doc key etc.)
   stations: (raw.stations ?? []).filter((s) => s && s.id),
+  // Recorded-message / announcement destinations (IVR, time/weather, greetings).
+  // id = the number that reaches the recording in your dialplan.
+  services: (raw.services ?? []).filter((s) => s && s.id),
 };

@@ -25,7 +25,7 @@ const MIME = {
   '.ico': 'image/x-icon',
 };
 
-const state = new CallState(config.stations);
+const state = new CallState(config.stations, config.services);
 state.site = config.site;
 state.subtitle = config.subtitle;
 state.exhibit = config.exhibit;

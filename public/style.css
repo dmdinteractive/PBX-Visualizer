@@ -1,29 +1,19 @@
 /* ============================================================
-   HELLO! — Bell System Network Operations Center
-   Homage to the AT&T Long Lines NOC (Bedminster, 1977):
-   dark control room, illuminated "big board" panels, Bell blue,
-   telephone color-code lamps, institutional Helvetica. No animation.
+   HELLO! — Bell System Long Lines exhibit
+   Black CRT board, vibrant retro phosphor colors, monospace.
    ============================================================ */
 :root {
-  --navy:      #071320;   /* control-room background */
-  --panel:     #0b1d31;   /* panel face */
-  --panel-hi:  #103052;   /* panel label bar */
-  --border:    #17456f;   /* panel borders */
-  --bell:      #2f86e0;   /* Bell blue accents */
-  --bell-dim:  #3d6690;   /* dim blue */
-  --route:     #2f86e0;   /* network routes */
-  --grid:      #0e2135;   /* faint board grid */
-
-  /* Telephone / status color code */
-  --green:     #33c26b;   /* call in progress */
-  --amber:     #f2a900;   /* ringing / caution (AT&T amber) */
-  --red:       #e43b30;   /* alarm */
-  --idle:      #37567a;   /* on-hook */
-
-  --ink:       #d7e7fb;   /* primary text */
-  --ink-dim:   #7f9bbd;   /* secondary text */
-
-  --font: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", "Nimbus Sans", sans-serif;
+  --bg:       #000000;  /* black board */
+  --grid:     #0b1a16;  /* faint grid */
+  --amber:    #ffb000;  /* ringing */
+  --green:    #33ff77;  /* toll / outside call in progress */
+  --cyan:     #35e0ff;  /* station-to-station call */
+  --magenta:  #ff5edc;  /* recorded message */
+  --violet:   #b06bff;  /* recorded message node */
+  --dim:      #3f6b60;  /* on-hook / idle */
+  --ink:      #d6f5e8;  /* text */
+  --red:      #ff4a3d;  /* alarm / link down */
+  --font: "DejaVu Sans Mono", "Menlo", "Consolas", monospace;
 }
 
 * { box-sizing: border-box; }
@@ -31,149 +21,83 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: var(--navy);
+  background: var(--bg);
   color: var(--ink);
   font-family: var(--font);
   overflow: hidden;
   cursor: none;
-  -webkit-font-smoothing: antialiased;
 }
 
-#console {
+#frame {
   position: fixed;
   inset: 0;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  gap: 10px;
-  padding: 12px;
 }
 
-/* ---------- Masthead ---------- */
-#masthead {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  padding: 4px 8px 12px;
-  border-bottom: 2px solid var(--border);
-}
-.brand { display: flex; align-items: center; gap: 14px; }
-.bell-logo { width: 48px; height: 48px; }
-.bell-logo .bell-ring { fill: none; stroke: var(--bell); stroke-width: 2.5; }
-.bell-logo .bell-body { fill: var(--bell); }
-.wordmark { display: flex; flex-direction: column; line-height: 1.1; }
-.wordmark .line1 { font-weight: 700; font-size: 20px; letter-spacing: 3px; color: var(--ink); }
-.wordmark .line2 { font-size: 12px; letter-spacing: 5px; color: var(--bell); }
-
-.title-block { text-align: center; }
-#exhibit-title {
-  margin: 0;
-  font-size: 40px;
-  font-weight: 700;
-  letter-spacing: 4px;
-  color: #fff;
-}
-.title-block .subtitle {
-  font-size: 12px;
-  letter-spacing: 6px;
-  color: var(--ink-dim);
-  margin-top: 2px;
-}
-
-.masthead-right { justify-self: end; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
-.datetime { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
-.datetime #date { font-size: 12px; letter-spacing: 3px; color: var(--ink-dim); }
-.datetime #clock { font-size: 22px; letter-spacing: 3px; color: var(--ink); font-variant-numeric: tabular-nums; }
-.sys {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 4px 12px; border: 1px solid var(--border); border-radius: 2px;
-  font-size: 12px; letter-spacing: 2px;
-}
-.sys label { color: var(--ink-dim); }
-.sys b { letter-spacing: 3px; }
-.sys.normal b { color: var(--green); }
-.sys.busy   b { color: var(--amber); }
-.sys.alarm  b { color: var(--red); }
-
-/* ---------- Panels ---------- */
-#board-area { display: grid; grid-template-columns: 1fr 340px; gap: 10px; min-height: 0; }
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 3px;
+/* ---- top bar ---- */
+#topbar, #statusbar {
+  background: #000;
+  border-bottom: 1px solid #12302a;
+  padding: 8px 18px;
   display: flex;
-  flex-direction: column;
-  min-height: 0;
+  align-items: center;
+  justify-content: space-between;
+  letter-spacing: 2px;
 }
-.panel-label {
-  display: flex; align-items: center; justify-content: space-between;
-  background: var(--panel-hi);
-  border-bottom: 1px solid var(--border);
-  padding: 6px 12px;
-  font-size: 12px; font-weight: 700; letter-spacing: 3px;
-  color: var(--ink);
+#statusbar {
+  border-bottom: none;
+  border-top: 1px solid #12302a;
+  gap: 26px;
+  justify-content: flex-start;
+  font-size: 13px;
 }
-.panel-body { position: relative; flex: 1; min-height: 0; padding: 8px; }
 
-/* Link indicator (static, no blink) */
-.link { font-weight: 700; letter-spacing: 2px; padding-left: 16px; position: relative; }
-.link::before {
-  content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-  width: 9px; height: 9px; border-radius: 50%;
-  background: var(--idle); box-shadow: 0 0 6px rgba(0,0,0,0);
-}
-.link.up   { color: var(--green); }
-.link.up::before   { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.brand { display: flex; align-items: center; gap: 12px; font-size: 20px; }
+.bell-logo { width: 30px; height: 30px; }
+.bell-logo .bell-ring { fill: none; stroke: var(--amber); stroke-width: 2.5; }
+.bell-logo .bell-body { fill: var(--amber); }
+.brand #site { color: var(--amber); font-weight: 700; text-shadow: 0 0 10px rgba(255,176,0,.45); }
+.brand .sep { color: var(--dim); }
+.brand #exhibit-title { color: var(--cyan); font-weight: 700; text-shadow: 0 0 12px rgba(53,224,255,.5); }
+
+.readout { display: flex; align-items: center; gap: 18px; font-size: 15px; }
+#clock { color: var(--green); letter-spacing: 3px; }
+.link { padding: 3px 10px; border: 1px solid currentColor; border-radius: 2px; font-size: 12px; }
+.link.up { color: var(--green); }
 .link.down { color: var(--red); }
-.link.down::before { background: var(--red); box-shadow: 0 0 8px var(--red); }
 
-#board .panel-body { padding: 0; }
+/* ---- board ---- */
 #scope { width: 100%; height: 100%; display: block; }
 
-/* ---------- Side panels ---------- */
-#sidepanels { display: grid; grid-template-rows: auto 1fr; gap: 10px; min-height: 0; }
-.readout { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-content: start; }
-.metric {
-  border: 1px solid var(--border); border-radius: 2px;
-  padding: 10px 12px; background: rgba(16, 48, 82, 0.25);
-  display: flex; flex-direction: column; gap: 2px;
-}
-.metric:first-child { grid-column: 1 / -1; }
-.metric .num { font-size: 44px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; color: var(--ink); }
-.metric label { font-size: 11px; letter-spacing: 2px; color: var(--ink-dim); }
+/* ---- status bar ---- */
+.stat { display: flex; align-items: center; gap: 8px; }
+.stat label { color: var(--dim); }
+.stat span { color: var(--ink); font-size: 18px; min-width: 2ch; }
 #s-active { color: var(--green); }
 #s-ringing { color: var(--amber); }
+#s-messages { color: var(--magenta); }
 
-/* Alert & Alarm call list */
-.aa .panel-body { display: flex; flex-direction: column; overflow: hidden; }
-#calllist { list-style: none; margin: 0; padding: 0; overflow: hidden; flex: 1; }
-#calllist li {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 8px; border-left: 3px solid var(--idle);
-  border-bottom: 1px solid rgba(23, 69, 111, 0.35);
-  font-size: 13px; letter-spacing: 1px;
-}
-#calllist li.busy    { border-left-color: var(--green); }
-#calllist li.ringing { border-left-color: var(--amber); }
-#calllist li .route { flex: 1; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#calllist li .route .to { color: var(--ink-dim); }
-#calllist li .dur { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
-#calllist li.ringing .state { color: var(--amber); }
-#calllist li.busy .state { color: var(--green); }
-#calllist li .state { font-size: 11px; letter-spacing: 1px; width: 42px; }
-.empty { color: var(--bell-dim); font-size: 12px; letter-spacing: 3px; text-align: center; padding: 20px 0; }
+.legend { margin-left: auto; display: flex; gap: 16px; color: var(--dim); font-size: 12px; }
+.legend .key { display: flex; align-items: center; gap: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.sw.idle     { background: var(--dim); }
+.sw.ringing  { background: var(--amber);   box-shadow: 0 0 8px var(--amber); }
+.sw.internal { background: var(--cyan);    box-shadow: 0 0 8px var(--cyan); }
+.sw.toll     { background: var(--green);   box-shadow: 0 0 8px var(--green); }
+.sw.msg      { background: var(--magenta); box-shadow: 0 0 8px var(--magenta); }
 
-/* ---------- Status bar ---------- */
-#statusbar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 10px; border-top: 2px solid var(--border);
-  font-size: 12px; letter-spacing: 2px; color: var(--ink-dim);
+/* ---- CRT scanlines ---- */
+.scanlines {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0,0,0,0) 0px,
+    rgba(0,0,0,0) 2px,
+    rgba(0,0,0,0.20) 3px,
+    rgba(0,0,0,0.20) 3px
+  );
+  mix-blend-mode: multiply;
 }
-.legend { display: flex; gap: 22px; }
-.legend .key { display: flex; align-items: center; gap: 8px; }
-.sw { width: 12px; height: 12px; border-radius: 50%; display: inline-block; border: 1px solid rgba(255,255,255,0.15); }
-.sw.busy    { background: var(--green); box-shadow: 0 0 6px var(--green); }
-.sw.ringing { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
-.sw.idle    { background: var(--idle); }
-.sw.toll    { background: var(--bell); box-shadow: 0 0 6px var(--bell); }
-.footer-right { color: var(--ink-dim); }
-.footer-right #uptime, .footer-right #stations-count { color: var(--ink); }
