@@ -79,6 +79,25 @@ html, body {
 #notes .v { font-weight: 700; }
 #notes .spacer { height: 14px; }
 
+/* Connections legend — ties each on-diagram colour to a call */
+.conn-head {
+  margin: 18px 0 8px;
+  padding-top: 10px;
+  border-top: 1px solid #000;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.conn-head .src { font-weight: 400; color: #5b5b5b; font-size: 12px; }
+#connections { max-height: 46vh; overflow: hidden; }
+#connections .conn { display: flex; align-items: center; gap: 10px; padding: 2px 0; }
+#connections .conn i {
+  width: 15px; height: 11px; flex: none;
+  border: 1px solid rgba(0, 0, 0, 0.55); /* chip outline, like the catalog */
+}
+#connections .conn .p { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#connections .conn .d { font-weight: 700; font-variant-numeric: tabular-nums; }
+#connections .none { color: #5b5b5b; }
+
 /* ---- key, bottom right, as on the diagram ---- */
 #key {
   position: fixed;

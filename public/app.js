@@ -1,15 +1,12 @@
 /* HELLO! — Live Telephony Diagram.
  *
- * Drawn as monochrome line-art after the CMD Networking Telephony Diagram:
- *   · CENTRAL SWITCHING OFFICE — the exhibit's PBX
- *   · every visitor phone on its own subscriber line ending in an open circle,
- *     scattered rather than laid out on a perfect radius
- *   · AUTOMATED MESSAGES — a node the ghost extensions hang off
- *   · LONG LINES — the toll network, over a bidirectional trunk line
+ * Monochrome line-art after the CMD Networking Telephony Diagram. The plant is
+ * drawn once in black; a live call is shown not by a new line but by lighting
+ * up the EXISTING subscriber lines it connects, in a shared Western Electric
+ * colour (from the 6/83 colour chart). Follow a colour from a phone, through
+ * the CENTRAL SWITCHING OFFICE, to the other phone to read a connection.
  *
- * State is shown without colour, the way the source diagram would:
- *   open circle = on-hook · filled circle = in use · dashed = ringing
- *   solid bold line with an arrowhead = a call, pointing caller -> destination
+ *   open circle = on-hook · filled = in use · double ring = ringing
  */
 
 const EXTERNAL = 'EXTERNAL';
@@ -17,11 +14,32 @@ const INK = '#000000';
 const PAPER = '#ffffff';
 const FONT_STACK = `"Prestige Elite Std", "Courier Prime", "Courier New", Courier, monospace`;
 
+// Western Electric telephone colours (code · name · hex), curated for contrast
+// on white and ordered so consecutive calls get maximally different colours.
+const WE = [
+  { code: '-115', name: 'ROYAL BLUE', hex: '#2f66ad' },
+  { code: '-114', name: 'BRIGHT RED', hex: '#d8443a' },
+  { code: '-111', name: 'HARVEST GOLD', hex: '#e0a72b' },
+  { code: '-105', name: 'DARK GREEN', hex: '#3f7a45' },
+  { code: '-112', name: 'ORANGE', hex: '#f47b2a' },
+  { code: '-59', name: 'ROSE PINK', hex: '#ef83ad' },
+  { code: '-64', name: 'TURQUOISE', hex: '#1fa899' },
+  { code: '-104', name: 'CHOCOLATE BROWN', hex: '#6b4a2f' },
+  { code: '-106', name: 'LIME GREEN', hex: '#6fb52e' },
+  { code: '-76', name: 'MUTED BLUE', hex: '#6d9ac2' },
+  { code: '-53', name: 'CHERRY RED', hex: '#a23a48' },
+  { code: '-100', name: 'AVOCADO', hex: '#8a9550' },
+  { code: '-124', name: 'RUST', hex: '#cf6329' },
+  { code: '-62', name: 'AQUA BLUE', hex: '#3f9fc7' },
+  { code: '-51', name: 'MOSS GREEN', hex: '#6f8f4f' },
+  { code: '-109', name: 'WALNUT', hex: '#7a4a24' },
+];
+
 const canvas = document.getElementById('scope');
 const ctx = canvas.getContext('2d');
 
 let state = { stations: [], services: [], calls: [], stats: {} };
-let serviceIds = new Set();
+let serviceName = new Map();
 let terminals = new Map(); // id -> { x, y, a, kind, host }
 let office = { x: 0, y: 0, r: 0 };
 let msgs = { x: 0, y: 0, r: 0 };
@@ -29,9 +47,27 @@ let toll = { x: 0, y: 0, r: 0 };
 let R = 0;
 let dpr = 1;
 
+// Stable colour assignment: a call keeps its colour for its whole life.
+let colorAssign = new Map(); // callId -> WE index
+function assignColors(calls) {
+  const present = new Set(calls.map((c) => c.id));
+  for (const id of [...colorAssign.keys()]) if (!present.has(id)) colorAssign.delete(id);
+  const used = new Set(colorAssign.values());
+  for (const c of calls) {
+    if (colorAssign.has(c.id)) continue;
+    let idx = 0;
+    while (idx < WE.length && used.has(idx)) idx++;
+    if (idx >= WE.length) idx = colorAssign.size % WE.length; // more calls than colours: reuse
+    colorAssign.set(c.id, idx);
+    used.add(idx);
+  }
+}
+function colorOf(c) {
+  const i = colorAssign.get(c.id);
+  return i == null ? INK : WE[i % WE.length].hex;
+}
+
 // ---- deterministic scatter -------------------------------------------------
-// Positions must be stable across redraws and resizes, so the jitter is derived
-// from the extension number rather than Math.random().
 function hashOf(str) {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -60,14 +96,14 @@ function connect() {
     } catch {}
   };
 }
-function setLink(up) {
-  document.getElementById('link').textContent = up ? 'ACTIVE' : 'DOWN';
-}
+function setLink(up) { document.getElementById('link').textContent = up ? 'ACTIVE' : 'DOWN'; }
 
 function applyState(msg) {
   state = msg;
   state.services = msg.services || [];
-  serviceIds = new Set(state.services.map((s) => s.id));
+  serviceName = new Map(state.services.map((s) => [s.id, s.name && s.name !== s.id ? s.name : s.id]));
+  assignColors(state.calls);
+
   if (msg.exhibit) document.getElementById('exhibit-title').textContent = msg.exhibit;
   if (msg.subtitle) document.getElementById('subtitle').textContent = msg.subtitle;
   document.getElementById('s-active').textContent = msg.stats.active ?? 0;
@@ -76,6 +112,7 @@ function applyState(msg) {
   document.getElementById('s-handled').textContent = msg.stats.handled ?? 0;
   document.getElementById('s-lines').textContent = msg.stations.length;
   document.getElementById('s-uptime').textContent = hms(msg.stats.uptimeMs ?? 0);
+  renderConnections();
   layout();
 }
 
@@ -86,7 +123,6 @@ function resize() {
   canvas.height = Math.floor(canvas.clientHeight * dpr);
   layout();
 }
-
 const deg = (d) => (d * Math.PI) / 180;
 
 function layout() {
@@ -98,11 +134,7 @@ function layout() {
   msgs = { x: office.x + Math.cos(deg(-54)) * R * 0.92, y: office.y + Math.sin(deg(-54)) * R * 0.92, r: 46 * dpr };
 
   terminals = new Map();
-
-  // Visitor phones scatter around the office, over the sector that isn't
-  // occupied by the trunk east or the automated-messages node north-east.
   scatter(state.stations, office, deg(22), deg(268), R * 0.66, R * 1.02, 'phone');
-  // Ghosts hang off the automated-messages node, fanning away from the office.
   scatter(state.services, msgs, deg(-186), deg(-6), R * 0.24, R * 0.40, 'ghost');
 
   function scatter(list, host, a0, a1, rMin, rMax, kind) {
@@ -113,23 +145,12 @@ function layout() {
       const rand = rngOf(hashOf(String(list[i].id)));
       const a = a0 + span * (i + 0.5) + (rand() - 0.5) * span * 0.85;
       const rad = rMin + rand() * (rMax - rMin);
-      terminals.set(list[i].id, {
-        x: host.x + Math.cos(a) * rad,
-        y: host.y + Math.sin(a) * rad,
-        a, kind, host,
-      });
+      terminals.set(list[i].id, { x: host.x + Math.cos(a) * rad, y: host.y + Math.sin(a) * rad, a, kind, host });
     }
   }
 }
 
-function posOf(id) {
-  if (id === EXTERNAL) return toll;
-  return terminals.get(id) || office;
-}
-function radiusOf(id) {
-  if (id === EXTERNAL) return toll.r;
-  return 5.5 * dpr;
-}
+function termRadius() { return 5.5 * dpr; }
 function callFor(id) {
   let ringing = null;
   for (const c of state.calls) {
@@ -140,65 +161,76 @@ function callFor(id) {
   return ringing;
 }
 
-// ---- drawing ---------------------------------------------------------------
-function draw(t) {
-  ctx.fillStyle = PAPER;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  reserved = [];
-  ctx.strokeStyle = INK;
-  ctx.fillStyle = INK;
-
-  drawTrunk(office, toll);
-  drawTrunk(office, msgs);
-  drawSubscriberLines();
-
-  const calls = [...state.calls].sort((a, b) => (a.state === 'connected') - (b.state === 'connected'));
-  const fan = fanGroups(calls);
-  for (const c of calls) drawCall(c, t, fan.get(c.id));
-
-  for (const s of state.stations) drawTerminal(s, 'phone');
-  for (const s of state.services) drawTerminal(s, 'ghost');
-
-  drawNode(office, state.officeName || 'CENTRAL SWITCHING OFFICE');
-  drawNode(msgs, state.messagesName || 'AUTOMATED MESSAGES');
-  drawNode(toll, state.tollName || 'LONG LINES');
-
-  flushLabels();
-  requestAnimationFrame(draw);
+// The physical line segments a call lights up. Every call meets at the office:
+// a phone lights its own subscriber line; a ghost lights its line PLUS the
+// office↔messages trunk; the outside world lights the office↔toll trunk.
+function segmentsFor(id) {
+  if (id === EXTERNAL) return [{ key: 'trunk:toll', geom: trunkGeom(office, toll) }];
+  const t = terminals.get(id);
+  if (!t) return [];
+  const segs = [{ key: 'term:' + id, geom: termGeom(id) }];
+  if (t.kind === 'ghost') segs.push({ key: 'trunk:msgs', geom: trunkGeom(office, msgs) });
+  return segs;
 }
-
-// Thin line from the node out to the terminal; dashed while it's ringing.
-function drawSubscriberLines() {
-  const status = new Map();
-  for (const s of state.stations) status.set(s.id, s.status);
-  for (const s of state.services) status.set(s.id, s.status);
-
-  for (const [id, t] of terminals) {
-    const st = status.get(id) || 'idle';
-    const host = t.host;
-    const dx = t.x - host.x, dy = t.y - host.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const ux = dx / len, uy = dy / len;
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = (st === 'idle' ? 1 : 1.6) * dpr;
-    if (st === 'ringing') ctx.setLineDash([5 * dpr, 4 * dpr]);
-    ctx.beginPath();
-    ctx.moveTo(host.x + ux * host.r, host.y + uy * host.r);
-    ctx.lineTo(t.x - ux * radiusOf(id), t.y - uy * radiusOf(id));
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
+function termGeom(id) {
+  const t = terminals.get(id);
+  const host = t.host;
+  const dx = t.x - host.x, dy = t.y - host.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len;
+  return { x1: host.x + ux * host.r, y1: host.y + uy * host.r, x2: t.x - ux * termRadius(), y2: t.y - uy * termRadius() };
 }
-
-// Bidirectional trunk: two parallel lines, an arrowhead at each far end.
-function drawTrunk(a, b) {
+function trunkGeom(a, b) {
   const dx = b.x - a.x, dy = b.y - a.y;
   const len = Math.hypot(dx, dy) || 1;
   const ux = dx / len, uy = dy / len;
-  const px = -uy, py = ux;
+  return { x1: a.x + ux * a.r, y1: a.y + uy * a.r, x2: b.x - ux * b.r, y2: b.y - uy * b.r };
+}
+
+// ---- drawing ---------------------------------------------------------------
+function draw() {
+  ctx.fillStyle = PAPER;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  reserved = [];
+
+  drawBasePlant();
+  drawConnections();
+  for (const s of state.stations) drawTerminal(s, 'phone');
+  for (const s of state.services) drawTerminal(s, 'ghost');
+  drawNode(office, state.officeName || 'CENTRAL SWITCHING OFFICE');
+  drawNode(msgs, state.messagesName || 'AUTOMATED MESSAGES');
+  drawNode(toll, state.tollName || 'LONG LINES');
+  flushLabels();
+
+  requestAnimationFrame(draw);
+}
+
+// Black plant: idle subscriber lines, and the trunks as bidirectional pairs.
+function drawBasePlant() {
+  const busy = new Set();
+  for (const c of state.calls) { busy.add(c.fromId); busy.add(c.toId); }
+
+  ctx.strokeStyle = INK;
+  for (const [id, t] of terminals) {
+    if (busy.has(id) && callFor(id)) continue; // lit lines are drawn coloured
+    const g = termGeom(id);
+    ctx.lineWidth = 1 * dpr;
+    ctx.beginPath();
+    ctx.moveTo(g.x1, g.y1);
+    ctx.lineTo(g.x2, g.y2);
+    ctx.stroke();
+  }
+  drawTrunkBase(office, toll);
+  drawTrunkBase(office, msgs);
+}
+
+function drawTrunkBase(a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len, px = -uy, py = ux;
   ctx.strokeStyle = INK;
   ctx.fillStyle = INK;
-  ctx.lineWidth = 1.3 * dpr;
+  ctx.lineWidth = 1.2 * dpr;
   for (const s of [-1, 1]) {
     const ox = px * 3.5 * dpr * s, oy = py * 3.5 * dpr * s;
     const x1 = a.x + ux * a.r + ox, y1 = a.y + uy * a.r + oy;
@@ -212,79 +244,66 @@ function drawTrunk(a, b) {
   }
 }
 
-function fanGroups(calls) {
-  const groups = new Map();
-  for (const c of calls) {
-    const k = [c.fromId, c.toId].sort().join('|');
-    if (!groups.has(k)) groups.set(k, []);
-    groups.get(k).push(c.id);
+// Colour the existing lines. Segments shared by several calls (a trunk, or a
+// ghost line with several listeners) fan out into parallel coloured strands.
+function drawConnections() {
+  const bySeg = new Map(); // segKey -> [{ geom, color, dashed }]
+  for (const c of state.calls) {
+    const color = colorOf(c);
+    const endpoints = [
+      { id: c.fromId, dashed: false },
+      { id: c.toId, dashed: c.state !== 'connected' },
+    ];
+    for (const ep of endpoints) {
+      for (const seg of segmentsFor(ep.id)) {
+        if (!bySeg.has(seg.key)) bySeg.set(seg.key, []);
+        bySeg.get(seg.key).push({ geom: seg.geom, color, dashed: ep.dashed });
+      }
+    }
   }
-  const info = new Map();
-  for (const ids of groups.values()) ids.forEach((id, i) => info.set(id, { idx: i, count: ids.length }));
-  return info;
+  for (const strands of bySeg.values()) {
+    const n = strands.length;
+    strands.forEach((s, i) => drawStrand(s.geom, s.color, i, n, s.dashed));
+  }
 }
 
-function controlPoint(p1, p2, fan) {
-  const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
-  const dx = p2.x - p1.x, dy = p2.y - p1.y;
+function drawStrand(g, color, i, n, dashed) {
+  const dx = g.x2 - g.x1, dy = g.y2 - g.y1;
   const len = Math.hypot(dx, dy) || 1;
-  let cp = { x: mx + (-dy / len) * len * 0.22, y: my + (dx / len) * len * 0.22 };
-  if (fan && fan.count > 1) {
-    const off = (fan.idx - (fan.count - 1) / 2) * 30 * dpr;
-    cp = { x: cp.x + (-dy / len) * off, y: cp.y + (dx / len) * off };
-  }
-  return cp;
-}
-
-function drawCall(c, t, fan) {
-  const p1 = posOf(c.fromId), p2 = posOf(c.toId);
-  const cp = controlPoint(p1, p2, fan);
-  const ringing = c.state !== 'connected';
-
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = (ringing ? 1.5 : 2.6) * dpr;
-  if (ringing) ctx.setLineDash([7 * dpr, 6 * dpr]);
+  const px = -dy / len, py = dx / len;
+  const off = (i - (n - 1) / 2) * 4 * dpr;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3 * dpr;
+  ctx.lineCap = 'round';
+  if (dashed) ctx.setLineDash([7 * dpr, 6 * dpr]);
   ctx.beginPath();
-  ctx.moveTo(p1.x, p1.y);
-  ctx.quadraticCurveTo(cp.x, cp.y, p2.x, p2.y);
+  ctx.moveTo(g.x1 + px * off, g.y1 + py * off);
+  ctx.lineTo(g.x2 + px * off, g.y2 + py * off);
   ctx.stroke();
   ctx.setLineDash([]);
-
-  const tx = 2 * (p2.x - cp.x), ty = 2 * (p2.y - cp.y);
-  const l = Math.hypot(tx, ty) || 1;
-  const back = radiusOf(c.toId) + 5 * dpr;
-  arrowHead(p2.x - (tx / l) * back, p2.y - (ty / l) * back, Math.atan2(ty, tx), 9 * dpr);
-
-  if (!ringing) {
-    for (let i = 0; i < 3; i++) {
-      const pt = quad(p1, cp, p2, ((t / 1600) + i / 3) % 1);
-      ctx.fillStyle = INK;
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 2.4 * dpr, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    const mid = quad(p1, cp, p2, 0.5);
-    label(mid.x, mid.y - 11 * dpr, hms(Math.max(0, Date.now() - c.since), true), 11);
-  }
-
-  const ext = c.fromId === EXTERNAL ? c.fromLabel : (c.toId === EXTERNAL ? c.toLabel : null);
-  if (ext) {
-    const at = quad(p1, cp, p2, c.fromId === EXTERNAL ? 0.24 : 0.76);
-    label(at.x, at.y, ext, 11);
-  }
+  ctx.lineCap = 'butt';
 }
 
-// Open circle = on-hook, filled = in use.
 function drawTerminal(s, kind) {
   const t = terminals.get(s.id);
   if (!t) return;
-  const inUse = s.status === 'busy';
-  const r = radiusOf(s.id);
+  const call = callFor(s.id);
+  const color = call ? colorOf(call) : INK;
+  let mode = 'idle';
+  if (call) mode = call.state === 'connected' ? 'use' : (call.fromId === s.id ? 'use' : 'ring');
+  const r = termRadius();
 
+  if (mode === 'ring') { // static double ring
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.4 * dpr;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, r + 3 * dpr, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   ctx.beginPath();
   ctx.arc(t.x, t.y, r, 0, Math.PI * 2);
-  ctx.fillStyle = inUse ? INK : PAPER;
-  ctx.strokeStyle = INK;
+  ctx.fillStyle = mode === 'use' ? color : PAPER;
+  ctx.strokeStyle = color;
   ctx.lineWidth = 1.4 * dpr;
   ctx.fill();
   ctx.stroke();
@@ -297,18 +316,14 @@ function drawTerminal(s, kind) {
   ctx.font = `${(kind === 'ghost' ? 11 : 12) * dpr}px ${FONT_STACK}`;
   ctx.fillStyle = INK;
 
-  let text = kind === 'ghost' ? (s.name && s.name !== s.id ? s.name : s.id) : s.id;
+  let text = kind === 'ghost' ? (serviceName.get(s.id) || s.id) : s.id;
   if (kind === 'ghost') {
-    const n = state.calls.filter((c) => c.state === 'connected' && (c.toId === s.id || c.fromId === s.id)).length;
-    if (n > 1) text += `  x${n}`;
+    const listeners = state.calls.filter((c) => c.state === 'connected' && (c.toId === s.id || c.fromId === s.id)).length;
+    if (listeners > 1) text += `  x${listeners}`;
   }
   ctx.fillText(text, lx, ly);
-
   const tw = ctx.measureText(text).width;
-  reserved.push({
-    x: (left ? lx - tw : right ? lx : lx - tw / 2) - 3 * dpr,
-    y: ly - 8 * dpr, w: tw + 6 * dpr, h: 16 * dpr,
-  });
+  reserved.push({ x: (left ? lx - tw : right ? lx : lx - tw / 2) - 3 * dpr, y: ly - 8 * dpr, w: tw + 6 * dpr, h: 16 * dpr });
   ctx.textAlign = 'start';
 }
 
@@ -347,9 +362,32 @@ function wrap(text, maxChars) {
   return lines;
 }
 
+// ---- connections legend panel ---------------------------------------------
+function partyLabel(id, fallback) {
+  if (id === EXTERNAL) return fallback || 'OUTSIDE';
+  if (serviceName.has(id)) return serviceName.get(id);
+  return id;
+}
+function renderConnections() {
+  const box = document.getElementById('connections');
+  if (!box) return;
+  const calls = [...(state.calls || [])].sort((a, b) => a.since - b.since);
+  if (!calls.length) { box.innerHTML = '<div class="none">— all lines idle —</div>'; return; }
+  box.innerHTML = calls.map((c) => {
+    const col = colorOf(c);
+    const from = partyLabel(c.fromId, c.fromLabel);
+    const to = partyLabel(c.toId, c.toLabel);
+    const dur = c.state === 'connected' ? hms(Date.now() - c.since, true) : 'RING';
+    return `<div class="conn"><i style="background:${col}"></i>` +
+           `<span class="p">${esc(from)} › ${esc(to)}</span>` +
+           `<span class="d">${dur}</span></div>`;
+  }).join('');
+}
+
 // ---- helpers ---------------------------------------------------------------
 let labelQueue = [];
 let reserved = [];
+function esc(s) { return String(s ?? '').replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])); }
 
 function arrowHead(x, y, ang, size) {
   ctx.fillStyle = INK;
@@ -361,12 +399,7 @@ function arrowHead(x, y, ang, size) {
   ctx.fill();
 }
 
-function label(x, y, text, size) {
-  labelQueue.push({ x, y, text, size });
-}
-function overlaps(a, b) {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
+function overlaps(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
 function flushLabels() {
   const placed = [...reserved];
   const h = 15 * dpr;
@@ -380,7 +413,6 @@ function flushLabels() {
     }
     const rect = { x: L.x - w / 2, y: y - h / 2, w, h };
     placed.push(rect);
-    // knock the line out behind the text, as a draughtsman would
     ctx.fillStyle = PAPER;
     ctx.fillRect(rect.x, rect.y, w, h);
     ctx.fillStyle = INK;
@@ -392,33 +424,24 @@ function flushLabels() {
   labelQueue = [];
 }
 
-function quad(p0, p1, p2, t) {
-  const u = 1 - t;
-  return {
-    x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x,
-    y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y,
-  };
-}
-
 function hms(ms, short = false) {
   const s = Math.max(0, Math.floor(ms / 1000));
   const hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
   const p = (n) => String(n).padStart(2, '0');
   return short && hh === 0 ? `${p(mm)}:${p(ss)}` : `${p(hh)}:${p(mm)}:${p(ss)}`;
 }
-
 function tickClock() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
   document.getElementById('clock').textContent = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  renderConnections(); // keep durations ticking
 }
 
 // ---- boot ------------------------------------------------------------------
 window.addEventListener('resize', resize);
-setInterval(tickClock, 250);
+setInterval(tickClock, 1000);
 tickClock();
 resize();
 connect();
 requestAnimationFrame(draw);
-// Re-layout once the webfont lands so label metrics are right.
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
