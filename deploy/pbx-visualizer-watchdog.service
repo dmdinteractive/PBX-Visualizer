@@ -1,0 +1,8 @@
+[Unit]
+Description=Restart the PBX Visualizer if it stops answering HTTP
+After=pbx-visualizer.service
+
+[Service]
+Type=oneshot
+ExecStart=@DIR@/deploy/watchdog.sh
+SyslogIdentifier=pbxv-watchdog

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=HELLO! Kiosk
+Comment=Fullscreen telephony diagram on the exhibit TV
+Exec=@DIR@/deploy/kiosk.sh
+Terminal=false
+X-GNOME-Autostart-enabled=true

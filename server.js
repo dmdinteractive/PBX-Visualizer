@@ -114,6 +114,17 @@ const server = http.createServer(async (req, res) => {
     return json(405, { error: 'method not allowed' });
   }
 
+  // ---- liveness (the kiosk launcher waits on this; the watchdog polls it) ----
+  if (url.pathname === '/healthz') {
+    return json(200, {
+      ok: true,
+      mode: config.mode,
+      uptimeSec: Math.round(process.uptime()),
+      viewers: wss.clients.size,
+      stations: state.stations.size,
+    });
+  }
+
   // ---- static files ----
   try {
     let p = decodeURIComponent(url.pathname);

@@ -1,0 +1,32 @@
+[Unit]
+Description=HELLO! Telephony Diagram (PBX Visualizer)
+Documentation=https://github.com/dmdinteractive/PBX-Visualizer
+After=network-online.target
+Wants=network-online.target
+# Never give up on the service: without this, five crashes in ten seconds
+# would leave it dead until someone drove out to the exhibit.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=@USER@
+Group=@GROUP@
+WorkingDirectory=@DIR@
+ExecStart=@NODE@ @DIR@/server.js
+Restart=always
+RestartSec=5
+TimeoutStopSec=10
+KillMode=mixed
+
+# The admin UI rewrites config.json, so the app directory must stay writable.
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=false
+PrivateTmp=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pbxv
+
+[Install]
+WantedBy=multi-user.target
