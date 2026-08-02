@@ -178,3 +178,8 @@ Most settings no longer need a restart — use `/admin`.
   `pkill chromium` retries once it has.
 - **Screen goes black after ten minutes** — blanking came back on. Re-run
   `sudo raspi-config nonint do_blanking 1`.
+- **The board blinks white** — the canvas only repaints when the state changes,
+  so a flash means the browser dropped a frame, not the app. Check
+  `~/.cache/pbx-kiosk.log` for GPU process crashes; if there are any, add
+  `--disable-gpu-compositing` to the Chromium line in `deploy/kiosk.sh`. The
+  board is cheap enough to draw that software compositing keeps up.

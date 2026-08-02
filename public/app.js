@@ -114,6 +114,7 @@ function applyState(msg) {
   document.getElementById('s-uptime').textContent = hms(msg.stats.uptimeMs ?? 0);
   renderConnections();
   layout();
+  invalidate();
 }
 
 // ---- geometry --------------------------------------------------------------
@@ -122,6 +123,7 @@ function resize() {
   canvas.width = Math.floor(canvas.clientWidth * dpr);
   canvas.height = Math.floor(canvas.clientHeight * dpr);
   layout();
+  invalidate();
 }
 const deg = (d) => (d * Math.PI) / 180;
 
@@ -188,6 +190,24 @@ function trunkGeom(a, b) {
 }
 
 // ---- drawing ---------------------------------------------------------------
+// Nothing on the canvas is animated — the plant only moves when the state or
+// the window size changes — so we repaint on demand rather than running a 60fps
+// loop. On exhibit hardware a permanent full-canvas repaint is enough load to
+// make the compositor drop a blank frame, which reads as a white flash on the
+// TV because the paper is white. The server pushes a snapshot at least every
+// 3s, so a missed invalidate can never leave the board stale for long.
+let repaintQueued = false;
+function invalidate() {
+  if (repaintQueued) return;
+  repaintQueued = true;
+  requestAnimationFrame(() => { repaintQueued = false; draw(); });
+}
+
+// A lost 2D context leaves the canvas blank — white, here. Chromium only
+// restores it if the loss event is cancelled.
+canvas.addEventListener('contextlost', (e) => e.preventDefault());
+canvas.addEventListener('contextrestored', () => resize());
+
 function draw() {
   ctx.fillStyle = PAPER;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -201,8 +221,6 @@ function draw() {
   drawNode(msgs, state.messagesName || 'AUTOMATED MESSAGES');
   drawNode(toll, state.tollName || 'LONG LINES');
   flushLabels();
-
-  requestAnimationFrame(draw);
 }
 
 // Black plant: idle subscriber lines, and the trunks as bidirectional pairs.
@@ -443,5 +461,6 @@ setInterval(tickClock, 1000);
 tickClock();
 resize();
 connect();
-requestAnimationFrame(draw);
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => { layout(); invalidate(); });
+}

@@ -24,7 +24,12 @@ port() {
 
 URL="${PBXV_URL:-http://localhost:$(port)}"
 
-log() { echo "[kiosk] $*"; }
+LOG="${XDG_CACHE_HOME:-$HOME/.cache}/pbx-kiosk.log"
+mkdir -p "$(dirname "$LOG")"
+# Months of uptime shouldn't fill the SD card.
+[ -f "$LOG" ] && [ "$(wc -c <"$LOG" 2>/dev/null || echo 0)" -gt 5000000 ] && : > "$LOG"
+
+log() { echo "[kiosk] $*" | tee -a "$LOG"; }
 
 # --- 1. wait for the board -------------------------------------------------
 # The service and the desktop start in parallel; without this the TV shows
@@ -81,7 +86,7 @@ while true; do
     --autoplay-policy=no-user-gesture-required \
     --check-for-update-interval=31536000 \
     --password-store=basic \
-    >/dev/null 2>&1
+    >>"$LOG" 2>&1
 
   log "browser exited — relaunching in 5s"
   sleep 5
