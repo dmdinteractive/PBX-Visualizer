@@ -123,25 +123,54 @@ function renderLink() {
   el.className = 'v' + (cls ? ' ' + cls : '');
 }
 
+// The server re-sends a full snapshot every 3s whether or not anything moved.
+// Rebuilding the panel and the diagram on each one made the board hitch on a
+// cadence; these signatures reduce a no-change snapshot to a few text
+// comparisons, and leave an idle board repainting nothing at all.
+const sig = { plant: null, calls: null, traffic: null };
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el && el.textContent !== String(value)) el.textContent = value;
+}
+
 function applyState(msg) {
   state = msg;
   state.services = msg.services || [];
-  serviceName = new Map(state.services.map((s) => [s.id, s.name && s.name !== s.id ? s.name : s.id]));
-  assignColors(state.calls);
 
-  if (msg.exhibit) document.getElementById('exhibit-title').textContent = msg.exhibit;
-  if (msg.subtitle) document.getElementById('subtitle').textContent = msg.subtitle;
-  document.getElementById('s-active').textContent = msg.stats.active ?? 0;
-  document.getElementById('s-ringing').textContent = msg.stats.ringing ?? 0;
-  document.getElementById('s-messages').textContent = msg.stats.messages ?? 0;
-  document.getElementById('s-handled').textContent = msg.traffic?.total ?? msg.stats.handled ?? 0;
-  document.getElementById('s-lines').textContent = msg.stations.length;
-  document.getElementById('s-uptime').textContent = hms(msg.stats.uptimeMs ?? 0);
+  // `since` is in the call signature because answering a ringing call resets it,
+  // which has to restart that row's timer.
+  const plantSig = msg.stations.map((s) => `${s.id}:${s.name}`).join(',') + '|' +
+                   state.services.map((s) => `${s.id}:${s.name}`).join(',');
+  const callSig = msg.calls.map((c) => `${c.id}:${c.state}:${c.since}`).join(',');
+  const trafficSig = msg.traffic
+    ? `${msg.traffic.day}:${msg.traffic.total}:${msg.traffic.peak}:${msg.traffic.nowBucket}` : '';
+
+  const plantChanged = plantSig !== sig.plant;
+  const callsChanged = callSig !== sig.calls;
+
+  if (plantChanged) {
+    sig.plant = plantSig;
+    serviceName = new Map(state.services.map((s) => [s.id, s.name && s.name !== s.id ? s.name : s.id]));
+  }
+  if (callsChanged) {
+    sig.calls = callSig;
+    assignColors(state.calls);
+  }
+
+  if (msg.exhibit) setText('exhibit-title', msg.exhibit);
+  if (msg.subtitle) setText('subtitle', msg.subtitle);
+  setText('s-active', msg.stats.active ?? 0);
+  setText('s-ringing', msg.stats.ringing ?? 0);
+  setText('s-messages', msg.stats.messages ?? 0);
+  setText('s-handled', msg.traffic?.total ?? msg.stats.handled ?? 0);
+  setText('s-lines', msg.stations.length);
+  setText('s-uptime', hms(msg.stats.uptimeMs ?? 0));
   renderLink();
-  renderConnections();
-  renderTraffic();
-  layout();
-  invalidate();
+
+  if (callsChanged || plantChanged) renderConnections();
+  if (trafficSig !== sig.traffic) { sig.traffic = trafficSig; renderTraffic(); }
+  if (plantChanged) layout();
+  if (callsChanged || plantChanged) invalidate();
 }
 
 // ---- geometry --------------------------------------------------------------
@@ -440,7 +469,8 @@ function renderConnections() {
     const from = partyLabel(c.fromId, c.fromLabel);
     const to = partyLabel(c.toId, c.toLabel);
     const dur = c.state === 'connected' ? hms(Date.now() - c.since, true) : 'RING';
-    return `<div class="conn"><i style="background:${col}"></i>` +
+    return `<div class="conn" data-state="${esc(c.state)}" data-since="${Number(c.since) || 0}">` +
+           `<i style="background:${col}"></i>` +
            `<span class="p">${esc(from)} › ${esc(to)}</span>` +
            `<span class="d">${dur}</span></div>`;
   }).join('');
@@ -524,11 +554,24 @@ function hms(ms, short = false) {
   const p = (n) => String(n).padStart(2, '0');
   return short && hh === 0 ? `${p(mm)}:${p(ss)}` : `${p(hh)}:${p(mm)}:${p(ss)}`;
 }
+// Tick the elapsed times in place. This used to rebuild the whole connections
+// list once a second, which is a lot of DOM churn for a handful of digits.
+function tickDurations() {
+  for (const row of document.querySelectorAll('#connections .conn')) {
+    const cell = row.querySelector('.d');
+    if (!cell) continue;
+    const text = row.dataset.state === 'connected'
+      ? hms(Date.now() - Number(row.dataset.since), true)
+      : 'RING';
+    if (cell.textContent !== text) cell.textContent = text;
+  }
+}
+
 function tickClock() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
-  document.getElementById('clock').textContent = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-  renderConnections(); // keep durations ticking
+  setText('clock', `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`);
+  tickDurations();
 }
 
 // ---- boot ------------------------------------------------------------------
