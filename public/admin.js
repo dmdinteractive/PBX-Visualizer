@@ -1,6 +1,6 @@
 /* Admin UI — reads and writes /api/config. Saving applies to the running board
- * immediately; phones and messages hot-swap, and a switch-connection change
- * reconnects AMI without a restart. */
+ * immediately; phones and messages hot-swap. The switch connection is NOT
+ * editable here: it lives in pbx.js and is shown read-only. */
 
 const $ = (id) => document.getElementById(id);
 let cfg = null;
@@ -13,11 +13,10 @@ async function load() {
   $('officeName').value = cfg.officeName || '';
   $('messagesName').value = cfg.messagesName || '';
   $('tollName').value = cfg.tollName || '';
-  $('mode').value = cfg.mode || 'simulate';
-  $('amiHost').value = cfg.ami?.host || '';
-  $('amiPort').value = cfg.ami?.port || 5038;
-  $('amiUser').value = cfg.ami?.username || '';
-  $('amiSecret').value = '';
+  $('ro-mode').textContent = cfg.mode === 'ami' ? 'Live PBX (AMI)' : 'Simulate traffic';
+  $('ro-host').textContent = cfg.ami?.host || '—';
+  $('ro-port').textContent = cfg.ami?.port || '—';
+  $('ro-user').textContent = cfg.ami?.username || '—';
   renderRows('stations', cfg.stations || []);
   renderRows('services', cfg.services || []);
   flash('');
@@ -98,20 +97,9 @@ $('save').onclick = async () => {
     officeName: $('officeName').value.trim(),
     messagesName: $('messagesName').value.trim(),
     tollName: $('tollName').value.trim(),
-    mode: $('mode').value,
-    ami: {
-      host: $('amiHost').value.trim(),
-      port: Number($('amiPort').value) || 5038,
-      username: $('amiUser').value.trim(),
-    },
     stations: collect('stations'),
     services: collect('services'),
   };
-  // Only send the secret if they actually typed a new one.
-  const secret = $('amiSecret').value;
-  if (secret) patch.ami.secret = secret;
-  else patch.ami.secret = cfg.ami?.secret ?? '';
-
   $('save').disabled = true;
   $('status').textContent = 'Saving…';
   try {
@@ -123,7 +111,6 @@ $('save').onclick = async () => {
     const out = await res.json();
     if (!res.ok) throw new Error(out.error || 'save failed');
     cfg = out.config;
-    $('amiSecret').value = '';
     flash('Saved. The board updated immediately.');
     $('status').textContent = '';
   } catch (err) {

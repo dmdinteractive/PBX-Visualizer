@@ -35,6 +35,10 @@
 
 * { box-sizing: border-box; }
 
+/* Everything on the board is sized in vmin so the layout is identical whether
+   the TV is 1080p or 4K, and large enough to read from across the gallery.
+   1vmin = 1% of the short side = 10.8px at 1080p. */
+
 html, body {
   margin: 0;
   height: 100%;
@@ -50,64 +54,105 @@ html, body {
 /* ---- title block (boxed heading, as on the diagram) ---- */
 #titleblock {
   position: fixed;
-  top: 26px;
-  left: 34px;
-  border: 2px solid var(--ink);
-  padding: 8px 18px;
+  top: 2.4vmin;
+  left: 3vmin;
+  border: 0.28vmin solid var(--ink);
+  padding: 0.9vmin 1.8vmin;
 }
 #titleblock h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 3.4vmin;
   font-weight: 400;
-  letter-spacing: 1px;
+  letter-spacing: 0.1vmin;
   white-space: nowrap;
 }
 #titleblock #exhibit-title { font-weight: 700; }
-#titleblock #subtitle { }
 
-/* ---- notes block, under the title, as on the diagram ---- */
+/* ---- left column: stats, live connections, today's traffic ----
+   A flex column pinned between the title block and the bottom of the screen,
+   so the connections list can grow into whatever room is left and the traffic
+   graph stays anchored at the foot of the column. */
 #notes {
   position: fixed;
-  top: 104px;
-  left: 34px;
-  font-size: 15px;
-  line-height: 1.55;
+  top: 11.5vmin;
+  left: 3vmin;
+  bottom: 3vmin;
+  width: 36vmin;
+  display: flex;
+  flex-direction: column;
+  font-size: 2.05vmin;
+  line-height: 1.5;
 }
-#notes .row { display: flex; gap: 8px; }
-#notes .k { min-width: 210px; }
-#notes .k::after { content: ""; }
-#notes .v { font-weight: 700; }
-#notes .spacer { height: 14px; }
+#notes .row { display: flex; gap: 1vmin; }
+#notes .k { flex: 1; }
+#notes .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+#notes .v.warn { color: #7a5c00; }
+#notes .v.bad { color: #b3261e; }
+#notes .spacer { height: 1.4vmin; }
 
-/* Connections legend — ties each on-diagram colour to a call */
+/* ---- live connections — the centrepiece of the left column ---- */
 .conn-head {
-  margin: 18px 0 8px;
-  padding-top: 10px;
-  border-top: 1px solid #000;
+  margin: 1.8vmin 0 1vmin;
+  padding-top: 1.1vmin;
+  border-top: 0.19vmin solid var(--ink);
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0.12vmin;
+  font-size: 2.2vmin;
+  display: flex;
+  align-items: baseline;
+  gap: 1vmin;
 }
-.conn-head .src { font-weight: 400; color: #5b5b5b; font-size: 12px; }
-#connections { max-height: 46vh; overflow: hidden; }
-#connections .conn { display: flex; align-items: center; gap: 10px; padding: 2px 0; }
+.conn-head { white-space: nowrap; }
+.conn-head .src { font-weight: 400; color: #5b5b5b; font-size: 1.4vmin; margin-left: auto; }
+/* The traffic header carries a longer caption than fits beside it, so it sits
+   on its own line rather than wrapping the heading. */
+#traffic .conn-head { display: block; }
+#traffic .conn-head .src { display: block; margin: 0.35vmin 0 0; }
+
+#connections { flex: 1; min-height: 0; overflow: hidden; }
+#connections .conn {
+  display: flex;
+  align-items: center;
+  gap: 1.2vmin;
+  padding: 0.5vmin 0;
+  font-size: 2.25vmin;
+}
+/* The colour chip ties a row to the lit line on the diagram, so it has to be
+   big enough to identify the colour from the far side of the room. */
 #connections .conn i {
-  width: 15px; height: 11px; flex: none;
-  border: 1px solid rgba(0, 0, 0, 0.55); /* chip outline, like the catalog */
+  width: 3.4vmin; height: 1.9vmin; flex: none;
+  border: 0.19vmin solid rgba(0, 0, 0, 0.55);
 }
 #connections .conn .p { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #connections .conn .d { font-weight: 700; font-variant-numeric: tabular-nums; }
-#connections .none { color: #5b5b5b; }
+#connections .none { color: #5b5b5b; font-size: 2vmin; }
+
+/* ---- today's traffic, anchored at the bottom of the column ---- */
+#traffic { flex: none; }
+#traffic svg { display: block; width: 100%; height: 13vmin; }
+#traffic .bar { fill: var(--ink); }
+#traffic .bar.future { fill: #d6d6d6; }
+#traffic .base { fill: var(--ink); }
+#traffic .sofar { fill: #f1f1f1; }
+#traffic .axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.4vmin;
+  color: #5b5b5b;
+  margin-top: 0.5vmin;
+}
+#traffic .peak { font-size: 1.4vmin; color: #5b5b5b; }
 
 /* ---- key, bottom right, as on the diagram ---- */
 #key {
   position: fixed;
-  right: 40px;
-  bottom: 32px;
-  font-size: 14px;
-  line-height: 1.7;
+  right: 3.5vmin;
+  bottom: 3vmin;
+  font-size: 1.8vmin;
+  line-height: 1.9;
 }
-#key .krow { display: flex; align-items: center; gap: 12px; }
-#key svg { width: 60px; height: 12px; overflow: visible; }
+#key .krow { display: flex; align-items: center; gap: 1.3vmin; }
+#key svg { width: 7vmin; height: 1.5vmin; overflow: visible; }
 #key svg line { stroke: var(--ink); stroke-width: 1.4; }
 #key svg circle { fill: var(--paper); stroke: var(--ink); stroke-width: 1.4; }
 #key svg circle.fill { fill: var(--ink); }

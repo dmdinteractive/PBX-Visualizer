@@ -28,19 +28,14 @@
 
     <section class="card">
       <h2>Switch connection</h2>
-      <div class="grid">
-        <label>Mode
-          <select id="mode">
-            <option value="ami">Live PBX (AMI)</option>
-            <option value="simulate">Simulate traffic</option>
-          </select>
-        </label>
-        <label>PBX address<input id="amiHost" placeholder="10.10.2.57" /></label>
-        <label>AMI port<input id="amiPort" placeholder="5038" /></label>
-        <label>AMI username<input id="amiUser" placeholder="visualizer" /></label>
-        <label>AMI secret<input id="amiSecret" type="password" placeholder="(unchanged)" /></label>
+      <p class="hint">Hard-coded in <code>pbx.js</code> so a reimaged Pi comes straight back up. To change it, edit that file and restart the service &mdash; it is deliberately not editable here.</p>
+      <div class="grid readonly">
+        <label>Mode<output id="ro-mode">&mdash;</output></label>
+        <label>PBX address<output id="ro-host">&mdash;</output></label>
+        <label>AMI port<output id="ro-port">&mdash;</output></label>
+        <label>AMI username<output id="ro-user">&mdash;</output></label>
       </div>
-      <p class="hint">Changing any of these reconnects the switch link immediately &mdash; no restart needed.</p>
+      <p class="hint">Live link status is shown on the board itself.</p>
     </section>
 
     <section class="card">

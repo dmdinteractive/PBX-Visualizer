@@ -9,8 +9,9 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, normalize, extname } from 'node:path';
 import { WebSocketServer } from 'ws';
 
-import { config, saveConfig } from './config.js';
+import { config, saveConfig, publicConfig } from './config.js';
 import { CallState } from './lib/state.js';
+import { DailyTraffic } from './lib/traffic.js';
 import { startSimulator } from './lib/simulator.js';
 import { startAmi } from './lib/ami.js';
 
@@ -30,7 +31,15 @@ const MIME = {
   '.otf': 'font/otf',
 };
 
+let dirty = false;
 const state = new CallState(config.stations, config.services);
+
+// Today's call volume, bucketed for the graph on the board. Survives restarts,
+// resets itself at local midnight.
+const traffic = new DailyTraffic(join(__dirname, 'traffic.json'));
+state.traffic = traffic;
+state.on('call', () => traffic.record());
+traffic.on('change', () => { dirty = true; });
 function applyNames() {
   state.site = config.site;
   state.subtitle = config.subtitle;
@@ -77,7 +86,7 @@ const server = http.createServer(async (req, res) => {
 
   // ---- config API (used by /admin) ----
   if (url.pathname === '/api/config') {
-    if (req.method === 'GET') return json(200, config);
+    if (req.method === 'GET') return json(200, publicConfig());
     if (req.method === 'POST') {
       try {
         const patch = JSON.parse(await readBody(req));
@@ -97,16 +106,13 @@ const server = http.createServer(async (req, res) => {
         const overlap = (patch.stations ?? config.stations).some((s) =>
           (patch.services ?? config.services).some((v) => String(v.id) === String(s.id)));
         if (overlap) return json(400, { error: 'an extension cannot be both a phone and an automated message' });
-        if (patch.mode && !['simulate', 'ami'].includes(patch.mode)) return json(400, { error: 'mode must be simulate or ami' });
 
-        const before = { mode: config.mode, ami: JSON.stringify(config.ami) };
         saveConfig(patch);
         applyNames();
         state.setStations(config.stations);
         state.setServices(config.services);
-        if (before.mode !== config.mode || before.ami !== JSON.stringify(config.ami)) startSource();
         broadcast();
-        return json(200, { ok: true, config });
+        return json(200, { ok: true, config: publicConfig() });
       } catch (err) {
         return json(400, { error: err.message });
       }
@@ -119,6 +125,8 @@ const server = http.createServer(async (req, res) => {
     return json(200, {
       ok: true,
       mode: config.mode,
+      link: state.link.status,
+      linkDetail: state.link.detail,
       uptimeSec: Math.round(process.uptime()),
       viewers: wss.clients.size,
       stations: state.stations.size,
@@ -153,7 +161,6 @@ function broadcast() {
 
 wss.on('connection', (ws) => ws.send(JSON.stringify(state.snapshot())));
 
-let dirty = false;
 state.on('change', () => { dirty = true; });
 setInterval(() => { if (dirty) { dirty = false; broadcast(); } }, 200);
 setInterval(broadcast, 3000);
@@ -169,6 +176,7 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {
     console.log('\n[pbxv] shutting down');
     stopSource();
+    traffic.stop();
     server.close();
     process.exit(0);
   });

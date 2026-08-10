@@ -11,3 +11,7 @@ public/fonts/*.woff2
 public/fonts/*.woff
 public/fonts/*.otf
 public/fonts/*.ttf
+
+# Today's call counts, written by the running service.
+traffic.json
+traffic.json.tmp

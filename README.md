@@ -32,37 +32,72 @@ npm start
 - Board: **http://localhost:8080**
 - Settings: **http://localhost:8080/admin**
 
-First run copies `config.example.json` → `config.json` and starts in
-**simulate** mode, so the board is alive immediately without a PBX.
+First run copies `config.example.json` → `config.json`. The switch connection
+comes from [`pbx.js`](pbx.js); to see the board without a PBX at all:
+
+```bash
+npm run simulate
+```
 
 ---
 
 ## Settings
 
-Everything is editable in the **admin UI at `/admin`** — exhibit name, node
-labels, the switch connection, and the list of phones and automated messages
-(with an "add a range" helper for 101–131). Saving writes `config.json` and
-applies to the running board immediately; changing the switch connection
-reconnects AMI without a restart.
+The **admin UI at `/admin`** covers the presentation: exhibit name, node labels,
+and the list of phones and automated messages (with an "add a range" helper for
+101–131). Saving writes `config.json` and applies to the running board
+immediately.
 
-`config.json` is **not tracked in git** — it holds your AMI secret and the admin
-UI rewrites it. Keep `config.example.json` as the template.
+The **switch connection is not there**. Host, port and username are hard-coded
+in [`pbx.js`](pbx.js), so reimaging the Pi and cloning this repo brings the
+exhibit back with nothing to reconfigure. `/admin` shows it read-only. To change
+it, edit `pbx.js` and `sudo systemctl restart pbx-visualizer`.
 
-| Setting | Meaning |
-|---|---|
-| `mode` | `simulate` (fake traffic) or `ami` (live PBX) |
-| `exhibit`, `subtitle` | Title block text |
-| `officeName`, `messagesName`, `tollName` | The three node labels |
-| `stations[]` | Visitor handsets, `{ "id", "name" }` |
-| `services[]` | Ghost extensions 201–207 |
-| `ami.*` | FreePBX host / port / username / secret |
+**The secret is deliberately not in `pbx.js`** — this repository is public. It
+lives in `/etc/default/pbx-visualizer`, root-readable only, which the systemd
+unit loads as `PBXV_AMI_SECRET`. `deploy/install.sh` asks for it once. To change
+it later:
 
-Env overrides: `PBXV_MODE`, `PBXV_PORT`, `PBXV_AMI_HOST`, `PBXV_AMI_PORT`,
-`PBXV_AMI_USER`, `PBXV_AMI_SECRET`, `PBXV_EXHIBIT`.
+```bash
+echo 'PBXV_AMI_SECRET=xxxxxxxx' | sudo tee /etc/default/pbx-visualizer
+sudo chmod 600 /etc/default/pbx-visualizer
+sudo systemctl restart pbx-visualizer
+```
+
+Without it the board still runs — the link just reports `LOGIN REJECTED` and the
+journal says why.
+
+`config.json` is **not tracked in git** — the admin UI rewrites it. Keep
+`config.example.json` as the template. It holds no credentials.
+
+| Setting | Where | Meaning |
+|---|---|---|
+| `mode` | `pbx.js` | `ami` (live PBX) or `simulate` (fake traffic) |
+| `host`, `port`, `username` | `pbx.js` | Where the switch is |
+| secret | `/etc/default/pbx-visualizer` | Kept out of git — see above |
+| `exhibit`, `subtitle` | `config.json` | Title block text |
+| `officeName`, `messagesName`, `tollName` | `config.json` | The three node labels |
+| `stations[]` | `config.json` | Visitor handsets, `{ "id", "name" }` |
+| `services[]` | `config.json` | Ghost extensions 201–207 |
+
+Env overrides, for testing without editing files:
+`PBXV_MODE=simulate`, `PBXV_AMI_HOST`, `PBXV_AMI_PORT`, `PBXV_AMI_USER`,
+`PBXV_AMI_SECRET`, `PBXV_PORT`, `PBXV_EXHIBIT`.
+
+### Today's traffic
+
+The board draws call volume across the day in 15-minute buckets, bottom left.
+It resets at **local midnight**, and it is written to `traffic.json` so a
+restart — the watchdog, an update, a power cut — doesn't erase the morning.
+"Calls today" counts the same thing, so it no longer resets when the service
+does.
 
 ---
 
 ## Connecting to FreePBX
+
+Put the host/username into [`pbx.js`](pbx.js) (the secret is asked for by
+`deploy/install.sh`), then set up the manager user:
 
 1. **Settings → Asterisk Manager Users → Add Manager**
    - Manager name: `visualizer`, and a strong secret
@@ -77,7 +112,9 @@ Env overrides: `PBXV_MODE`, `PBXV_PORT`, `PBXV_AMI_HOST`, `PBXV_AMI_PORT`,
    bindaddr = 0.0.0.0
    ```
    then `asterisk -rx "manager reload"`. Verify with `ss -tlnp | grep 5038`.
-4. In `/admin`, set mode to **Live PBX (AMI)** and fill in the address/secret.
+4. Restart the service. The board's **Switch link** readout reports the real
+   state of the AMI connection — `ACTIVE`, `CONNECTING`, `LOGIN REJECTED` or
+   `DOWN` — so it tells you directly whether step 1–3 worked.
 
 Keep port 5038 on the LAN. Never expose it to the internet.
 
@@ -118,6 +155,7 @@ What it puts in place:
 | `deploy/kiosk.sh` via autostart | Waits for the board, then holds Chromium fullscreen on it — relaunching if it is closed or crashes |
 | Chromium crash-flag scrub | A yanked power cord can't leave a "Restore pages?" bubble over the board |
 | `raspi-config` | Screen blanking off, boot to desktop with autologin |
+| `/etc/default/pbx-visualizer` | The AMI secret, asked for once, root-only, kept out of git |
 
 The kiosk registers with XDG autostart *and* with labwc or wayfire if the Pi is
 running one, so it survives whichever session Pi OS boots into.
@@ -148,13 +186,22 @@ Most settings no longer need a restart — use `/admin`.
 
 ## How it works
 
+- **`pbx.js`** — the hard-coded switch connection and the link tuning
+  (backoff, heartbeat, timeouts). The only file to edit to point at a new PBX.
 - **`lib/ami.js`** — AMI client. Watches `Dial*`, `Bridge*`, `Hangup`. Ghost legs
   are `Local/<exten>@from-internal` channels with no endpoint, so they're
-  resolved by the extension in the channel name.
+  resolved by the extension in the channel name. Built to stay up unattended:
+  exponential backoff with jitter, TCP keepalive, an AMI `Ping` heartbeat that
+  catches a half-open socket, and a rejected login backed off slowly and
+  reported rather than retried in a hot loop. Losing the link clears the live
+  calls so the TV can't show phantom traffic.
+- **`lib/traffic.js`** — today's call counts in 15-minute buckets; resets at
+  local midnight, survives restarts.
 - **`lib/state.js`** — the live picture: stations, services, calls.
 - **`lib/simulator.js`** — models the real dialplan (PLAR 75/25, inbound via 501,
   never double-books a phone).
-- **`server.js`** — static files, `/api/config`, `/healthz`, WebSocket broadcast.
+- **`server.js`** — static files, `/api/config` (never serves the AMI secret),
+  `/healthz`, WebSocket broadcast.
 - **`public/`** — the board (`app.js`) and the admin UI (`admin.js`).
 - **`deploy/`** — systemd units, the kiosk launcher and the installer.
 
@@ -162,9 +209,10 @@ Most settings no longer need a restart — use `/admin`.
 
 ## Troubleshooting
 
-- **`Authentication failed`** — wrong secret, or the Pi's IP isn't in the manager
-  user's **Permit** list.
-- **Switch link DOWN** — check the address in `/admin`; from the Pi try
+- **Board says `LOGIN REJECTED`** — wrong secret in `pbx.js`, or the Pi's IP
+  isn't in the manager user's **Permit** list. `journalctl -u pbx-visualizer`
+  prints the switch's own words.
+- **Switch link DOWN** — check the address in `pbx.js`; from the Pi try
   `nc -zv <pbx-ip> 5038`. "Connection refused" means AMI isn't listening on the
   LAN (see `bindaddr` above).
 - **A real call shows as an outside call** — that extension is missing from the

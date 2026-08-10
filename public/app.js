@@ -46,6 +46,13 @@ let msgs = { x: 0, y: 0, r: 0 };
 let toll = { x: 0, y: 0, r: 0 };
 let R = 0;
 let dpr = 1;
+// One drawing unit. The board used to be laid out in device pixels, so a 12px
+// extension label stayed 12px whether it was on a laptop or a 65" TV across the
+// room. Everything is now sized in U, which tracks the display's short side —
+// and is deliberately pushed well past 1:1 so the diagram reads from the far
+// side of the gallery.
+let U = 1;
+const TEN_FOOT = 1.5; // boldness multiplier for viewing at exhibit distance
 
 // Stable colour assignment: a call keeps its colour for its whole life.
 let colorAssign = new Map(); // callId -> WE index
@@ -86,8 +93,8 @@ function rngOf(seed) {
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${location.host}`);
-  ws.onopen = () => setLink(true);
-  ws.onclose = () => { setLink(false); setTimeout(connect, 1500); };
+  ws.onopen = () => { wsUp = true; renderLink(); };
+  ws.onclose = () => { wsUp = false; renderLink(); setTimeout(connect, 1500); };
   ws.onerror = () => ws.close();
   ws.onmessage = (ev) => {
     try {
@@ -96,7 +103,25 @@ function connect() {
     } catch {}
   };
 }
-function setLink(up) { document.getElementById('link').textContent = up ? 'ACTIVE' : 'DOWN'; }
+// The readout reports the PBX link, not this browser's socket. If the board
+// can't reach the server at all it says so instead of describing a link it has
+// no current information about.
+let wsUp = false;
+const LINK_TEXT = {
+  up: ['ACTIVE', ''],
+  simulate: ['SIMULATED', 'warn'],
+  connecting: ['CONNECTING', 'warn'],
+  authenticating: ['LOGGING IN', 'warn'],
+  'auth-failed': ['LOGIN REJECTED', 'bad'],
+  down: ['DOWN', 'bad'],
+};
+function renderLink() {
+  const el = document.getElementById('link');
+  if (!wsUp) { el.textContent = 'NO DATA'; el.className = 'v bad'; return; }
+  const [text, cls] = LINK_TEXT[state.link?.status] || ['—', ''];
+  el.textContent = text;
+  el.className = 'v' + (cls ? ' ' + cls : '');
+}
 
 function applyState(msg) {
   state = msg;
@@ -109,10 +134,12 @@ function applyState(msg) {
   document.getElementById('s-active').textContent = msg.stats.active ?? 0;
   document.getElementById('s-ringing').textContent = msg.stats.ringing ?? 0;
   document.getElementById('s-messages').textContent = msg.stats.messages ?? 0;
-  document.getElementById('s-handled').textContent = msg.stats.handled ?? 0;
+  document.getElementById('s-handled').textContent = msg.traffic?.total ?? msg.stats.handled ?? 0;
   document.getElementById('s-lines').textContent = msg.stations.length;
   document.getElementById('s-uptime').textContent = hms(msg.stats.uptimeMs ?? 0);
+  renderLink();
   renderConnections();
+  renderTraffic();
   layout();
   invalidate();
 }
@@ -122,6 +149,7 @@ function resize() {
   dpr = Math.min(window.devicePixelRatio || 1, 2);
   canvas.width = Math.floor(canvas.clientWidth * dpr);
   canvas.height = Math.floor(canvas.clientHeight * dpr);
+  U = (Math.min(canvas.width, canvas.height) / 900) * TEN_FOOT;
   layout();
   invalidate();
 }
@@ -130,10 +158,15 @@ const deg = (d) => (d * Math.PI) / 180;
 function layout() {
   const w = canvas.width, h = canvas.height;
   const m = Math.min(w, h);
-  R = m * 0.40;
-  office = { x: w / 2 - m * 0.10, y: h / 2 + m * 0.03, r: 52 * dpr };
-  toll = { x: office.x + R * 1.34, y: office.y, r: 40 * dpr };
-  msgs = { x: office.x + Math.cos(deg(-54)) * R * 0.92, y: office.y + Math.sin(deg(-54)) * R * 0.92, r: 46 * dpr };
+  // The notes column owns the left of the screen (33vmin in style.css). Centre
+  // the diagram in what is left, rather than in the whole window, so the plant
+  // uses the width a 16:9 TV actually has and its labels never run under the
+  // panel.
+  const gutter = m * 0.40;
+  R = m * 0.42;
+  office = { x: gutter + (w - gutter) / 2 - m * 0.10, y: h / 2 + m * 0.03, r: 52 * U };
+  toll = { x: office.x + R * 1.34, y: office.y, r: 40 * U };
+  msgs = { x: office.x + Math.cos(deg(-54)) * R * 0.92, y: office.y + Math.sin(deg(-54)) * R * 0.92, r: 46 * U };
 
   terminals = new Map();
   scatter(state.stations, office, deg(22), deg(268), R * 0.66, R * 1.02, 'phone');
@@ -152,7 +185,7 @@ function layout() {
   }
 }
 
-function termRadius() { return 5.5 * dpr; }
+function termRadius() { return 5.5 * U; }
 function callFor(id) {
   let ringing = null;
   for (const c of state.calls) {
@@ -232,7 +265,7 @@ function drawBasePlant() {
   for (const [id, t] of terminals) {
     if (busy.has(id) && callFor(id)) continue; // lit lines are drawn coloured
     const g = termGeom(id);
-    ctx.lineWidth = 1 * dpr;
+    ctx.lineWidth = 1 * U;
     ctx.beginPath();
     ctx.moveTo(g.x1, g.y1);
     ctx.lineTo(g.x2, g.y2);
@@ -248,17 +281,17 @@ function drawTrunkBase(a, b) {
   const ux = dx / len, uy = dy / len, px = -uy, py = ux;
   ctx.strokeStyle = INK;
   ctx.fillStyle = INK;
-  ctx.lineWidth = 1.2 * dpr;
+  ctx.lineWidth = 1.2 * U;
   for (const s of [-1, 1]) {
-    const ox = px * 3.5 * dpr * s, oy = py * 3.5 * dpr * s;
+    const ox = px * 3.5 * U * s, oy = py * 3.5 * U * s;
     const x1 = a.x + ux * a.r + ox, y1 = a.y + uy * a.r + oy;
     const x2 = b.x - ux * b.r + ox, y2 = b.y - uy * b.r + oy;
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
     ctx.stroke();
-    if (s < 0) arrowHead(x2, y2, Math.atan2(uy, ux), 8 * dpr);
-    else arrowHead(x1, y1, Math.atan2(-uy, -ux), 8 * dpr);
+    if (s < 0) arrowHead(x2, y2, Math.atan2(uy, ux), 8 * U);
+    else arrowHead(x1, y1, Math.atan2(-uy, -ux), 8 * U);
   }
 }
 
@@ -289,11 +322,11 @@ function drawStrand(g, color, i, n, dashed) {
   const dx = g.x2 - g.x1, dy = g.y2 - g.y1;
   const len = Math.hypot(dx, dy) || 1;
   const px = -dy / len, py = dx / len;
-  const off = (i - (n - 1) / 2) * 4 * dpr;
+  const off = (i - (n - 1) / 2) * 4 * U;
   ctx.strokeStyle = color;
-  ctx.lineWidth = 3 * dpr;
+  ctx.lineWidth = 3 * U;
   ctx.lineCap = 'round';
-  if (dashed) ctx.setLineDash([7 * dpr, 6 * dpr]);
+  if (dashed) ctx.setLineDash([7 * U, 6 * U]);
   ctx.beginPath();
   ctx.moveTo(g.x1 + px * off, g.y1 + py * off);
   ctx.lineTo(g.x2 + px * off, g.y2 + py * off);
@@ -313,25 +346,23 @@ function drawTerminal(s, kind) {
 
   if (mode === 'ring') { // static double ring
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.4 * dpr;
+    ctx.lineWidth = 1.4 * U;
     ctx.beginPath();
-    ctx.arc(t.x, t.y, r + 3 * dpr, 0, Math.PI * 2);
+    ctx.arc(t.x, t.y, r + 3 * U, 0, Math.PI * 2);
     ctx.stroke();
   }
   ctx.beginPath();
   ctx.arc(t.x, t.y, r, 0, Math.PI * 2);
   ctx.fillStyle = mode === 'use' ? color : PAPER;
   ctx.strokeStyle = color;
-  ctx.lineWidth = 1.4 * dpr;
+  ctx.lineWidth = 1.4 * U;
   ctx.fill();
   ctx.stroke();
 
-  const lx = t.x + Math.cos(t.a) * (r + 8 * dpr);
-  const ly = t.y + Math.sin(t.a) * (r + 8 * dpr);
   const right = Math.cos(t.a) > 0.15, left = Math.cos(t.a) < -0.15;
   ctx.textAlign = left ? 'right' : right ? 'left' : 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `${(kind === 'ghost' ? 11 : 12) * dpr}px ${FONT_STACK}`;
+  ctx.font = `${(kind === 'ghost' ? 11 : 12) * U}px ${FONT_STACK}`;
   ctx.fillStyle = INK;
 
   let text = kind === 'ghost' ? (serviceName.get(s.id) || s.id) : s.id;
@@ -339,9 +370,22 @@ function drawTerminal(s, kind) {
     const listeners = state.calls.filter((c) => c.state === 'connected' && (c.toId === s.id || c.fromId === s.id)).length;
     if (listeners > 1) text += `  x${listeners}`;
   }
-  ctx.fillText(text, lx, ly);
+
+  // Step the label outward along its own spoke until it clears the labels
+  // already placed. Two extensions that scatter to a similar angle would
+  // otherwise print on top of each other ("DIAL-A-JOKESTORY LINE").
   const tw = ctx.measureText(text).width;
-  reserved.push({ x: (left ? lx - tw : right ? lx : lx - tw / 2) - 3 * dpr, y: ly - 8 * dpr, w: tw + 6 * dpr, h: 16 * dpr });
+  const lh = 16 * U;
+  let gap = 8 * U, lx = 0, ly = 0, rect = null;
+  for (let i = 0; i < 12; i++) {
+    lx = t.x + Math.cos(t.a) * (r + gap);
+    ly = t.y + Math.sin(t.a) * (r + gap);
+    rect = { x: (left ? lx - tw : right ? lx : lx - tw / 2) - 3 * U, y: ly - lh / 2, w: tw + 6 * U, h: lh };
+    if (!reserved.some((o) => overlaps(o, rect))) break;
+    gap += lh * 0.85;
+  }
+  ctx.fillText(text, lx, ly);
+  reserved.push(rect);
   ctx.textAlign = 'start';
 }
 
@@ -350,7 +394,7 @@ function drawNode(n, name) {
   ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
   ctx.fillStyle = PAPER;
   ctx.strokeStyle = INK;
-  ctx.lineWidth = 1.6 * dpr;
+  ctx.lineWidth = 1.6 * U;
   ctx.fill();
   ctx.stroke();
 
@@ -359,8 +403,8 @@ function drawNode(n, name) {
   ctx.textBaseline = 'middle';
   ctx.fillStyle = INK;
   const size = lines.length > 2 ? 9 : 10;
-  ctx.font = `${size * dpr}px ${FONT_STACK}`;
-  const lh = (size + 2) * dpr;
+  ctx.font = `${size * U}px ${FONT_STACK}`;
+  const lh = (size + 2) * U;
   const y0 = n.y - ((lines.length - 1) * lh) / 2;
   lines.forEach((ln, i) => ctx.fillText(ln, n.x, y0 + i * lh));
   ctx.textAlign = 'start';
@@ -402,6 +446,38 @@ function renderConnections() {
   }).join('');
 }
 
+// ---- today's traffic -------------------------------------------------------
+// Bars are drawn in a 96x26 viewBox stretched to fit, so the SVG scales with the
+// panel and needs no pixel maths. Buckets later than now are greyed, which makes
+// the graph read as "the day so far" rather than a day that fell off a cliff.
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function renderTraffic() {
+  const svg = document.getElementById('traffic-svg');
+  const sub = document.getElementById('traffic-sub');
+  if (!svg) return;
+  const t = state.traffic;
+  if (!t) return;
+
+  const H = 26, BASE = 0.6;
+  const peak = Math.max(1, t.peak);
+  const parts = [
+    // Shade the part of the day that has already happened, so an empty stretch
+    // reads as "quiet so far" rather than "the graph is broken".
+    `<rect class="sofar" x="0" y="0" width="${t.nowBucket + 1}" height="${H}"/>`,
+    `<rect class="base" x="0" y="${H - BASE}" width="96" height="${BASE}"/>`,
+  ];
+  for (let i = 0; i < t.counts.length; i++) {
+    const future = i > t.nowBucket;
+    const h = (t.counts[i] / peak) * (H - BASE - 0.6);
+    // Give a bucket with any traffic at all a visible stub.
+    const drawn = t.counts[i] > 0 ? Math.max(h, 0.7) : (future ? 0 : 0.18);
+    if (drawn <= 0) continue;
+    parts.push(`<rect class="bar${future ? ' future' : ''}" x="${i + 0.08}" y="${H - BASE - drawn}" width="0.84" height="${drawn}"/>`);
+  }
+  svg.innerHTML = parts.join('');
+  if (sub) sub.textContent = `peak ${t.peak}/${t.bucketMinutes}min · ${t.total} today`;
+}
+
 // ---- helpers ---------------------------------------------------------------
 let labelQueue = [];
 let reserved = [];
@@ -420,14 +496,14 @@ function arrowHead(x, y, ang, size) {
 function overlaps(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
 function flushLabels() {
   const placed = [...reserved];
-  const h = 15 * dpr;
+  const h = 15 * U;
   for (const L of labelQueue) {
-    ctx.font = `${L.size * dpr}px ${FONT_STACK}`;
-    const w = ctx.measureText(L.text).width + 7 * dpr;
+    ctx.font = `${L.size * U}px ${FONT_STACK}`;
+    const w = ctx.measureText(L.text).width + 7 * U;
     let y = L.y;
     for (let i = 1; i <= 14; i++) {
       if (!placed.some((r) => overlaps(r, { x: L.x - w / 2, y: y - h / 2, w, h }))) break;
-      y = L.y + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * (h + 3 * dpr);
+      y = L.y + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * (h + 3 * U);
     }
     const rect = { x: L.x - w / 2, y: y - h / 2, w, h };
     placed.push(rect);

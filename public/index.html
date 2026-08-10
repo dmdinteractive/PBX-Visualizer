@@ -28,6 +28,13 @@
 
     <div class="conn-head">CONNECTIONS <span class="src">Western&nbsp;Electric colours</span></div>
     <div id="connections"><div class="none">— all lines idle —</div></div>
+
+    <!-- Today's call volume, reset at midnight -->
+    <div id="traffic">
+      <div class="conn-head">TODAY&rsquo;S TRAFFIC <span class="src" id="traffic-sub">calls per 15 min</span></div>
+      <svg id="traffic-svg" viewBox="0 0 96 26" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div class="axis"><span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>12a</span></div>
+    </div>
   </div>
 
   <!-- Key, bottom right, as on the source diagram -->

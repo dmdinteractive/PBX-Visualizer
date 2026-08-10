@@ -16,5 +16,7 @@ for f in "$HOME/.config/labwc/autostart" "$HOME/.config/wayfire.ini"; do
   [ -f "$f" ] && sed -i '/pbx-kiosk\|pbx.*kiosk\.sh/d' "$f"
 done
 
+echo "==> the AMI secret in /etc/default/pbx-visualizer was left in place"
+echo "    (remove it by hand if this Pi is leaving the exhibit)"
 echo "==> done. Screen blanking and autologin were left as they are."
 echo "    Reboot to drop the kiosk browser."

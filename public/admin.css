@@ -119,3 +119,15 @@ footer {
   font-size: 14px;
 }
 .flash.err { background: #000; color: #fff; }
+
+/* Read-only switch connection — looks like the inputs it replaced, but inert. */
+.grid.readonly output {
+  display: block;
+  padding: 9px 10px;
+  border: 1px dashed #b9b9b9;
+  background: #f6f6f6;
+  color: #444;
+  font: inherit;
+  font-size: 15px;
+}
+.hint code { background: #f0f0f0; padding: 1px 5px; border: 1px solid #ddd; }

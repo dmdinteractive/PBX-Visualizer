@@ -13,6 +13,10 @@ User=@USER@
 Group=@GROUP@
 WorkingDirectory=@DIR@
 ExecStart=@NODE@ @DIR@/server.js
+# The AMI secret, kept out of the (public) repo. The leading '-' means the unit
+# still starts if the file is missing — the board runs, the link reports
+# LOGIN REJECTED, and the journal says why.
+EnvironmentFile=-/etc/default/pbx-visualizer
 Restart=always
 RestartSec=5
 TimeoutStopSec=10

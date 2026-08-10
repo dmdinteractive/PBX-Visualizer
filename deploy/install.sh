@@ -11,6 +11,9 @@
 #   --no-kiosk        service only, no browser
 #   --no-autologin    don't touch the boot behaviour
 #   --no-deps         don't apt-install chromium/unclutter/curl
+#
+# The AMI secret is asked for once and stored in /etc/default/pbx-visualizer
+# (root only). Set PBXV_AMI_SECRET in the environment to supply it unattended.
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -73,6 +76,40 @@ if [ ! -d "$APP_DIR/node_modules/ws" ]; then
   (cd "$APP_DIR" && npm install --omit=dev)
 fi
 chmod +x "$APP_DIR/deploy/kiosk.sh" "$APP_DIR/deploy/watchdog.sh" "$APP_DIR/deploy/uninstall.sh"
+
+# --- AMI secret ------------------------------------------------------------
+# pbx.js is committed to a public repo, so the secret cannot live there. It goes
+# in a root-only env file that the systemd unit reads. Asked for once; re-running
+# the installer after a git pull leaves an existing secret alone.
+SECRET_FILE=/etc/default/pbx-visualizer
+write_secret() {
+  printf 'PBXV_AMI_SECRET=%s\n' "$1" | sudo tee "$SECRET_FILE" >/dev/null
+  sudo chown root:root "$SECRET_FILE"
+  sudo chmod 600 "$SECRET_FILE"
+}
+if sudo grep -qE '^PBXV_AMI_SECRET=.+' "$SECRET_FILE" 2>/dev/null; then
+  say "AMI secret already stored in $SECRET_FILE"
+elif [ -n "${PBXV_AMI_SECRET:-}" ]; then
+  say "storing the AMI secret from the environment"
+  write_secret "$PBXV_AMI_SECRET"
+  echo "    $SECRET_FILE (root only)"
+elif [ -t 0 ]; then
+  say "AMI secret"
+  echo "    FreePBX: Settings -> Asterisk Manager Users -> the 'visualizer' user."
+  printf '    Secret (input hidden, blank to skip): '
+  IFS= read -rs ENTERED || ENTERED=""
+  echo
+  if [ -n "$ENTERED" ]; then
+    write_secret "$ENTERED"
+    unset ENTERED
+    echo "    saved to $SECRET_FILE (root only)"
+  else
+    warn "no secret entered — the switch will reject the login until you set one"
+  fi
+else
+  warn "no AMI secret stored, and no terminal to ask on. Set it with:"
+  warn "  echo 'PBXV_AMI_SECRET=xxxx' | sudo tee $SECRET_FILE && sudo chmod 600 $SECRET_FILE"
+fi
 
 # --- systemd ---------------------------------------------------------------
 say "installing systemd units"
@@ -162,6 +199,13 @@ if command -v raspi-config >/dev/null 2>&1; then
   fi
 elif [ "$KIOSK" -eq 1 ]; then
   warn "not a Pi: set desktop autologin and disable the screensaver yourself"
+fi
+
+if ! sudo grep -qE '^PBXV_AMI_SECRET=.+' "$SECRET_FILE" 2>/dev/null; then
+  say "ACTION NEEDED"
+  warn "No AMI secret is stored, so the switch will reject the login."
+  warn "  echo 'PBXV_AMI_SECRET=xxxx' | sudo tee $SECRET_FILE"
+  warn "  sudo chmod 600 $SECRET_FILE && sudo systemctl restart pbx-visualizer"
 fi
 
 cat <<EOF
